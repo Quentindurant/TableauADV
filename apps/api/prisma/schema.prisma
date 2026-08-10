@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ColumnType {
+  TEXT
+  LONGTEXT
+  DATE
+  TIME
+  NUMBER
+  SELECT
+  LINK
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  passwordHash String
+  displayName  String
+  cursorColor  String
+  createdAt    DateTime   @default(now())
+  events       RowEvent[]
+}
+
+model Column {
+  id       String     @id @default(cuid())
+  key      String     @unique
+  label    String
+  type     ColumnType
+  position Int
+  width    Int        @default(150)
+  visible  Boolean    @default(true)
+  choices  Choice[]
+}
+
+model Choice {
+  id        String  @id @default(cuid())
+  columnId  String
+  column    Column  @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  label     String
+  bgColor   String?
+  textColor String?
+  bold      Boolean @default(false)
+  position  Int
+  archived  Boolean @default(false)
+
+  @@unique([columnId, label])
+}
+
+model Row {
+  id        String     @id @default(cuid())
+  month     String
+  position  Int
+  data      Json       @default("{}")
+  formats   Json       @default("{}")
+  version   Int        @default(0)
+  archived  Boolean    @default(false)
+  createdBy String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  events    RowEvent[]
+
+  @@index([month, archived])
+}
+
+model RowEvent {
+  id      String   @id @default(cuid())
+  rowId   String
+  row     Row      @relation(fields: [rowId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User     @relation(fields: [userId], references: [id])
+  at      DateTime @default(now())
+  type    String // create | update | delete | move | archive | format
+  payload Json
+
+  @@index([rowId, at])
+}
