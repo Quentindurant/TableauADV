@@ -93,9 +93,12 @@ Statuts :
 | ANNULEE | #FF0000 | #000000 | oui |
 | CLOTUREE | #A6A6A6 | #ABEBC6 | non |
 
-Partenaires (principaux ; les autres en neutre) : EVERLINK fond #229955,
-HIGHCOM fond #C39BD3, ENTREPRISE PRO fond #2772A4, OR-TEL fond #F1C40F,
-VIP TELECOM fond #AED6F1, WETELGROUP fond #FCDAE3.
+Partenaires : **chaque partenaire a sa couleur**. Six couleurs proviennent
+du fichier : EVERLINK fond #229955, HIGHCOM fond #C39BD3, ENTREPRISE PRO
+fond #2772A4, OR-TEL fond #F1C40F, VIP TELECOM fond #AED6F1, WETELGROUP
+fond #FCDAE3. Les 35 autres partenaires (neutres dans l'Excel) reçoivent à
+l'import une couleur distincte auto-attribuée depuis une palette pastel
+lisible (texte foncé assorti), modifiable ensuite dans les Paramètres.
 
 Tech : DIRECT texte #009ADF gras sur fond blanc ; autres revendeurs
 (ADWEB, DELTINFO, SOSINFO, OCCITECH, PSITEK, TOULINFO, VOSGES INFO, LAMIE)
@@ -307,7 +310,10 @@ Commande CLI côté API : `pnpm import:xlsx <fichier>`.
 1. Réparation du XML Zoho (opérateurs de format conditionnel non standard —
    script déjà écrit pendant l'analyse) puis lecture du classeur.
 2. Création des 16 colonnes avec libellés, ordre, largeurs du fichier.
-3. Création des choix de listes avec les couleurs de la section 2.3.
+3. Création des choix de listes avec les couleurs de la section 2.3 ;
+   partenaires sans couleur Excel → attribution automatique depuis la
+   palette pastel (déterministe : même partenaire, même couleur à chaque
+   rejeu).
 4. Feuilles mensuelles `MARS 2025` → `AOUT 2026` : chaque ligne non vide
    devient une `Row` du mois correspondant (mapping nom de feuille → YYYY-MM),
    ordre préservé. Feuilles `TEST` et `Feuille1` ignorées.
@@ -346,7 +352,17 @@ Commande CLI côté API : `pnpm import:xlsx <fichier>`.
   retour), rollback des modifs optimistes refusées.
 - Verrous orphelins : TTL 30 s + libération à la déconnexion du socket.
 
-## 11. Tests
+## 11. Méthodologie de développement
+
+- **Gitflow** : branches `main` (stable) et `develop` (intégration).
+  Chaque fonctionnalité = branche `feature/<nom>` depuis `develop`,
+  mergée dans `develop` et poussée sur GitHub à la fin de la
+  fonctionnalité. Mise en production = merge `develop` → `main` (tag).
+- **Tests à chaque fonctionnalité** : chaque feature NestJS embarque ses
+  tests (unitaires + e2e ciblés) et la gestion de ses cas d'erreur avant
+  merge. Pas de merge dans `develop` avec des tests rouges.
+
+## 12. Tests
 
 - **Unitaires (API)** : fusion par clé des PATCH concurrents, incrément de
   version + détection 409, machine à verrous (acquisition, refus, TTL,
@@ -357,7 +373,7 @@ Commande CLI côté API : `pnpm import:xlsx <fichier>`.
   deux contextes navigateur → présence + verrou + diffusion visibles.
 - Import : test sur le vrai fichier (compte de lignes par feuille attendu).
 
-## 12. Hors périmètre v1 (YAGNI)
+## 13. Hors périmètre v1 (YAGNI)
 
 - Rôles/permissions fines, undo/redo, export Excel, notifications
   (email/push), application mobile, statistiques/dashboards, multi-tableaux.
