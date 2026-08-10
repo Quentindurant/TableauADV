@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: suivi-postgres
+    environment:
+      POSTGRES_USER: suivi
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: suivi
+    ports:
+      - "5432:5432"
+    volumes:
+      - suivi_pgdata:/var/lib/postgresql/data
+
+volumes:
+  suivi_pgdata:
