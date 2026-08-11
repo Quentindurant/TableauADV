@@ -1,6 +1,7 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { ColumnDTO, ColumnType } from '@suivi/shared';
-import { ApiException, notFound } from '../common/api.exception';
+import { ApiException, notFound, validationFailed } from '../common/api.exception';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
 import { toColumnDTO } from './mappers';
 import { slugify, uniqueKey } from './slugify';
@@ -35,29 +36,39 @@ export class ColumnsService {
   async create(input: CreateColumnInput): Promise<ColumnDTO> {
     const label = input.label.trim();
 
-    const created = await this.prisma.$transaction(async (tx) => {
-      const existing = await tx.column.findMany({ select: { key: true } });
-      const key = uniqueKey(
-        slugify(label),
-        existing.map((column) => column.key),
-      );
-      const aggregate = await tx.column.aggregate({ _max: { position: true } });
-      const position = (aggregate._max.position ?? -1) + 1;
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.column.findMany({ select: { key: true } });
+        const key = uniqueKey(
+          slugify(label),
+          existing.map((column) => column.key),
+        );
+        const aggregate = await tx.column.aggregate({ _max: { position: true } });
+        const position = (aggregate._max.position ?? -1) + 1;
 
-      return tx.column.create({
-        data: {
-          key,
-          label,
-          type: input.type,
-          position,
-          width: DEFAULT_WIDTH,
-          visible: true,
-        },
-        include: { choices: { orderBy: { position: 'asc' } } },
+        return tx.column.create({
+          data: {
+            key,
+            label,
+            type: input.type,
+            position,
+            width: DEFAULT_WIDTH,
+            visible: true,
+          },
+          include: { choices: { orderBy: { position: 'asc' } } },
+        });
       });
-    });
 
-    return toColumnDTO(created);
+      return toColumnDTO(created);
+    } catch (error) {
+      // Course entre deux créations concurrentes du même libellé : la clé
+      // slugifiée calculée dans la transaction peut collisionner avec un
+      // insert concurrent sur la contrainte unique de `key`.
+      if (isUniqueConstraintViolation(error)) {
+        throw validationFailed('Une colonne portant ce nom existe déjà.');
+      }
+      throw error;
+    }
   }
 
   async update(id: string, input: UpdateColumnInput): Promise<ColumnDTO> {

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { ChoiceDTO } from '@suivi/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { notFound, validationFailed } from '../common/api.exception';
+import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { toChoiceDTO } from '../columns/mappers';
 
 export interface CreateChoiceInput {
@@ -36,33 +37,45 @@ export class ChoicesService {
     }
 
     const label = input.label.trim();
-    const duplicate = await this.prisma.choice.findFirst({ where: { columnId, label } });
-    if (duplicate) {
-      throw validationFailed(`La valeur « ${label} » existe déjà dans cette liste.`);
-    }
-
-    const aggregate = await this.prisma.choice.aggregate({
-      where: { columnId },
-      _max: { position: true },
-    });
-
-    const position = (aggregate._max.position ?? -1) + 1;
-
     const bold = input.bold ?? false;
 
-    const created = await this.prisma.choice.create({
-      data: {
-        columnId,
-        label,
-        bgColor: input.bgColor ?? null,
-        textColor: input.textColor ?? null,
-        bold,
-        position,
-        archived: false,
-      },
-    });
+    try {
+      const created = await this.prisma.$transaction(async (tx) => {
+        const duplicate = await tx.choice.findFirst({ where: { columnId, label } });
+        if (duplicate) {
+          throw validationFailed(`La valeur « ${label} » existe déjà dans cette liste.`);
+        }
 
-    return toChoiceDTO(created);
+        const aggregate = await tx.choice.aggregate({
+          where: { columnId },
+          _max: { position: true },
+        });
+
+        const position = (aggregate._max.position ?? -1) + 1;
+
+        return tx.choice.create({
+          data: {
+            columnId,
+            label,
+            bgColor: input.bgColor ?? null,
+            textColor: input.textColor ?? null,
+            bold,
+            position,
+            archived: false,
+          },
+        });
+      });
+
+      return toChoiceDTO(created);
+    } catch (error) {
+      // Course entre deux créations concurrentes du même libellé : le
+      // pré-check ci-dessus laisse une fenêtre entre deux requêtes
+      // simultanées sur la contrainte unique (columnId, label).
+      if (isUniqueConstraintViolation(error)) {
+        throw validationFailed(`La valeur « ${label} » existe déjà dans cette liste.`);
+      }
+      throw error;
+    }
   }
 
   async update(id: string, input: UpdateChoiceInput): Promise<ChoiceDTO> {
@@ -86,59 +99,70 @@ export class ChoicesService {
       }
     }
 
-    const updated = await this.prisma.$transaction(async (tx) => {
-      let targetPosition: number | undefined;
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        let targetPosition: number | undefined;
 
-      if (input.position !== undefined && input.position !== existing.position) {
-        const total = await tx.choice.count({ where: { columnId: existing.columnId } });
-        const from = existing.position;
-        const to = Math.min(Math.max(input.position, 0), total - 1);
+        if (input.position !== undefined && input.position !== existing.position) {
+          const total = await tx.choice.count({ where: { columnId: existing.columnId } });
+          const from = existing.position;
+          const to = Math.min(Math.max(input.position, 0), total - 1);
 
-        if (to < from) {
-          await tx.choice.updateMany({
-            where: { columnId: existing.columnId, id: { not: id }, position: { gte: to, lt: from } },
-            data: { position: { increment: 1 } },
-          });
-        } else if (to > from) {
-          await tx.choice.updateMany({
-            where: { columnId: existing.columnId, id: { not: id }, position: { gt: from, lte: to } },
-            data: { position: { decrement: 1 } },
-          });
+          if (to < from) {
+            await tx.choice.updateMany({
+              where: { columnId: existing.columnId, id: { not: id }, position: { gte: to, lt: from } },
+              data: { position: { increment: 1 } },
+            });
+          } else if (to > from) {
+            await tx.choice.updateMany({
+              where: { columnId: existing.columnId, id: { not: id }, position: { gt: from, lte: to } },
+              data: { position: { decrement: 1 } },
+            });
+          }
+          targetPosition = to;
         }
-        targetPosition = to;
-      }
 
-      const choice = await tx.choice.update({
-        where: { id },
-        data: {
-          ...(newLabel !== undefined ? { label: newLabel } : {}),
-          ...(input.bgColor !== undefined ? { bgColor: input.bgColor } : {}),
-          ...(input.textColor !== undefined ? { textColor: input.textColor } : {}),
-          ...(input.bold !== undefined ? { bold: input.bold } : {}),
-          ...(input.archived !== undefined ? { archived: input.archived } : {}),
-          ...(targetPosition !== undefined ? { position: targetPosition } : {}),
-        },
+        const choice = await tx.choice.update({
+          where: { id },
+          data: {
+            ...(newLabel !== undefined ? { label: newLabel } : {}),
+            ...(input.bgColor !== undefined ? { bgColor: input.bgColor } : {}),
+            ...(input.textColor !== undefined ? { textColor: input.textColor } : {}),
+            ...(input.bold !== undefined ? { bold: input.bold } : {}),
+            ...(input.archived !== undefined ? { archived: input.archived } : {}),
+            ...(targetPosition !== undefined ? { position: targetPosition } : {}),
+          },
+        });
+
+        if (isRename) {
+          // Les lignes stockent le LIBELLÉ du choix dans le JSONB : propagation en masse.
+          // jsonb_set(data, ARRAY['<clé>'], to_jsonb('<nouveau>'), false) : ne crée jamais
+          // la clé sur les lignes qui ne l'avaient pas.
+          await tx.$executeRaw`
+            UPDATE "Row"
+            SET "data" = jsonb_set(
+              "data",
+              ARRAY[${existing.column.key}::text],
+              to_jsonb(${newLabel as string}::text),
+              false
+            )
+            WHERE "data" ->> ${existing.column.key}::text = ${existing.label}::text
+          `;
+        }
+
+        return choice;
       });
 
-      if (isRename) {
-        // Les lignes stockent le LIBELLÉ du choix dans le JSONB : propagation en masse.
-        // jsonb_set(data, ARRAY['<clé>'], to_jsonb('<nouveau>'), false) : ne crée jamais
-        // la clé sur les lignes qui ne l'avaient pas.
-        await tx.$executeRaw`
-          UPDATE "Row"
-          SET "data" = jsonb_set(
-            "data",
-            ARRAY[${existing.column.key}::text],
-            to_jsonb(${newLabel as string}::text),
-            false
-          )
-          WHERE "data" ->> ${existing.column.key}::text = ${existing.label}::text
-        `;
+      return toChoiceDTO(updated);
+    } catch (error) {
+      // Course entre deux renommages concurrents vers le même libellé : le
+      // pré-check ci-dessus laisse une fenêtre entre deux requêtes
+      // simultanées sur la contrainte unique (columnId, label).
+      if (isUniqueConstraintViolation(error)) {
+        const label = newLabel ?? existing.label;
+        throw validationFailed(`La valeur « ${label} » existe déjà dans cette liste.`);
       }
-
-      return choice;
-    });
-
-    return toChoiceDTO(updated);
+      throw error;
+    }
   }
 }
