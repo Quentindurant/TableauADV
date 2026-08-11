@@ -1,12 +1,54 @@
-import { Injectable } from '@nestjs/common';
-import type { RowDTO } from '@suivi/shared';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
+import type { CellFormat, CellValue, RowDTO } from '@suivi/shared';
+import { ApiException, notFound } from '../common/api.exception';
 import { RowEventsService } from '../events/row-events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  buildDiff,
+  changedKeysOf,
+  conflictKeys,
+  mergeData,
+  mergeFormats,
+  versionOfPayload,
+  type FormatsPatch,
+  type RowData,
+  type RowFormats,
+} from './merge';
 import { toRowDTO } from './rows.mapper';
 
 export interface CreateRowInput {
   month: string;
   position?: number;
+}
+
+export interface PatchRowInput {
+  expectedVersion: number;
+  patch?: Record<string, CellValue>;
+  formats?: Record<string, CellFormat | null>;
+}
+
+/**
+ * Fenêtre d'événements relus pour la détection de conflit. Un client ne peut
+ * pas détenir une version antérieure à 200 éditions (toute reconnexion
+ * resynchronise la ligne entière), la fenêtre est donc largement suffisante.
+ */
+const CONFLICT_SCAN_LIMIT = 200;
+/** Nombre de rejeux d'une transaction sérialisable interrompue par un concurrent. */
+const SERIALIZATION_RETRIES = 3;
+
+/** PostgreSQL 40001 / Prisma P2034 : la transaction doit être rejouée. */
+function isSerializationFailure(error: unknown): boolean {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    return error.code === 'P2034';
+  }
+  // Une erreur métier volontaire (ApiException : 404/409...) n'est jamais un
+  // échec de sérialisation : elle doit remonter telle quelle, sans rejeu.
+  if (error instanceof HttpException) {
+    return false;
+  }
+  const message = error instanceof Error ? error.message : '';
+  return message.includes('40001') || message.includes('could not serialize');
 }
 
 @Injectable()
@@ -64,5 +106,98 @@ export class RowsService {
     });
 
     return toRowDTO(created);
+  }
+
+  /**
+   * Fusion clé par clé d'une ligne (cœur de la co-édition).
+   * Transaction sérialisable + verrou de ligne `FOR UPDATE` : deux PATCH
+   * concurrents sur la même ligne sont appliqués l'un après l'autre.
+   * Conflit (409) UNIQUEMENT si `expectedVersion < version` ET qu'une clé du
+   * patch a été modifiée par un événement postérieur à `expectedVersion`.
+   */
+  async patch(id: string, dto: PatchRowInput, userId: string): Promise<RowDTO> {
+    const patch: RowData = dto.patch ?? {};
+    const formatsPatch: FormatsPatch = dto.formats ?? {};
+    const keys = changedKeysOf(patch, formatsPatch);
+
+    const updated = await this.runSerialized(async (tx) => {
+      const locked = await tx.$queryRaw<{ id: string }[]>`
+        SELECT "id" FROM "Row" WHERE "id" = ${id} FOR UPDATE
+      `;
+      if (locked.length === 0) {
+        throw notFound('Ligne introuvable.');
+      }
+      const row = await tx.row.findUniqueOrThrow({ where: { id } });
+
+      if (dto.expectedVersion < row.version) {
+        const recent = await tx.rowEvent.findMany({
+          where: { rowId: id, type: { in: ['update', 'format'] } },
+          orderBy: [{ at: 'desc' }, { id: 'desc' }],
+          take: CONFLICT_SCAN_LIMIT,
+          select: { payload: true },
+        });
+        // Un événement sans version explicite est considéré postérieur (prudence).
+        const posterior = recent.filter((event) => {
+          const version = versionOfPayload(event.payload);
+          return version === null || version > dto.expectedVersion;
+        });
+        const conflicts = conflictKeys(posterior, keys);
+        if (conflicts.length > 0) {
+          throw new ApiException(
+            'VERSION_CONFLICT',
+            'Cette ligne a été modifiée entre-temps.',
+            HttpStatus.CONFLICT,
+            { current: toRowDTO(row), conflictKeys: conflicts },
+          );
+        }
+      }
+
+      const currentDto = toRowDTO(row);
+      const currentData: RowData = currentDto.data;
+      const currentFormats: RowFormats = currentDto.formats;
+      const nextVersion = row.version + 1;
+
+      const saved = await tx.row.update({
+        where: { id },
+        data: {
+          data: mergeData(currentData, patch) as Prisma.InputJsonObject,
+          formats: mergeFormats(currentFormats, formatsPatch) as Prisma.InputJsonObject,
+          version: nextVersion,
+        },
+      });
+      await this.events.record(tx, {
+        rowId: id,
+        userId,
+        type: 'update',
+        payload: {
+          version: nextVersion,
+          changedKeys: keys,
+          diff: buildDiff(currentData, patch),
+        },
+      });
+      return saved;
+    });
+
+    return toRowDTO(updated);
+  }
+
+  /** Transaction sérialisable, rejouée si un concurrent l'a fait échouer. */
+  private async runSerialized<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    let lastError: unknown = new Error('Transaction non exécutée.');
+    for (let attempt = 0; attempt < SERIALIZATION_RETRIES; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(fn, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 5000,
+          timeout: 15000,
+        });
+      } catch (error) {
+        if (!isSerializationFailure(error)) {
+          throw error;
+        }
+        lastError = error;
+      }
+    }
+    throw lastError;
   }
 }

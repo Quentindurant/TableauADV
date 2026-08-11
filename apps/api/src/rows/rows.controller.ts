@@ -1,5 +1,15 @@
-import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
-import { createRowSchema, type RowDTO } from '@suivi/shared';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { createRowSchema, patchRowSchema, type RowDTO } from '@suivi/shared';
 import { z } from 'zod';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -37,5 +47,14 @@ export class RowsController {
   @HttpCode(201)
   async create(@Body() body: unknown, @CurrentUserId() userId: string): Promise<RowDTO> {
     return this.rows.create(parseOrThrow(createRowSchema, body), userId);
+  }
+
+  @Patch(':id')
+  async patch(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    return this.rows.patch(id, parseOrThrow(patchRowSchema, body), userId);
   }
 }
