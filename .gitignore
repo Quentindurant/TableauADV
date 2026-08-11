@@ -8,3 +8,6 @@ coverage/
 .env.local
 .DS_Store
 apps/api/.env
+
+# override docker local (non versionné)
+docker-compose.override.yml
