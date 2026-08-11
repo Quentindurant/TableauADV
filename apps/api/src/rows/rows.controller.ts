@@ -1,6 +1,7 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import type { RowDTO } from '@suivi/shared';
+import { Body, Controller, Get, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
+import { createRowSchema, type RowDTO } from '@suivi/shared';
 import { z } from 'zod';
+import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { parseOrThrow } from '../common/api-error';
 import { RowsService } from './rows.service';
@@ -30,5 +31,11 @@ export class RowsController {
       return this.rows.findByMonth(filter.month);
     }
     return this.rows.findArchived();
+  }
+
+  @Post()
+  @HttpCode(201)
+  async create(@Body() body: unknown, @CurrentUserId() userId: string): Promise<RowDTO> {
+    return this.rows.create(parseOrThrow(createRowSchema, body), userId);
   }
 }
