@@ -1,6 +1,7 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
-import type { ColumnDTO } from '@suivi/shared';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import { createColumnSchema, type ColumnDTO } from '@suivi/shared';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { parseOrThrow } from '../common/api-error';
 import { ColumnsService } from './columns.service';
 
 @Controller('columns')
@@ -11,5 +12,11 @@ export class ColumnsController {
   @Get()
   findAll(): Promise<ColumnDTO[]> {
     return this.columns.findAll();
+  }
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() body: unknown): Promise<ColumnDTO> {
+    return this.columns.create(parseOrThrow(createColumnSchema, body));
   }
 }

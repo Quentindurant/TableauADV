@@ -93,4 +93,108 @@ describe('Colonnes (e2e)', () => {
       });
     });
   });
+
+  describe('POST /api/columns', () => {
+    it('refuse un appel sans cookie (401)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .send({ label: 'CLIENT', type: 'TEXT' });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('crée la première colonne avec key slugifiée, position 0 et largeur 150', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'CP CLIENT', type: 'TEXT' });
+
+      expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({
+        key: 'cp_client',
+        label: 'CP CLIENT',
+        type: 'TEXT',
+        position: 0,
+        width: 150,
+        visible: true,
+        choices: [],
+      });
+      expect(typeof (res.body as ColumnDTO).id).toBe('string');
+    });
+
+    it('retire les accents de la clé', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'Matériel reçu', type: 'SELECT' });
+
+      expect(res.status).toBe(201);
+      expect((res.body as ColumnDTO).key).toBe('materiel_recu');
+    });
+
+    it('place chaque nouvelle colonne en dernière position (max + 1)', async () => {
+      await prisma.column.create({
+        data: { key: 'client', label: 'CLIENT', type: 'TEXT', position: 4, width: 150 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'TECH', type: 'SELECT' });
+
+      expect(res.status).toBe(201);
+      expect((res.body as ColumnDTO).position).toBe(5);
+    });
+
+    it('suffixe la clé en cas de collision (_2 puis _3)', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'CLIENT', type: 'TEXT' });
+      const second = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'Client', type: 'TEXT' });
+      const third = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'client', type: 'TEXT' });
+
+      expect([first.status, second.status, third.status]).toEqual([201, 201, 201]);
+      expect((first.body as ColumnDTO).key).toBe('client');
+      expect((second.body as ColumnDTO).key).toBe('client_2');
+      expect((third.body as ColumnDTO).key).toBe('client_3');
+    });
+
+    it('se rabat sur la clé "colonne" quand le libellé n\'a aucun caractère alphanumérique', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: '***', type: 'TEXT' });
+
+      expect(res.status).toBe(201);
+      expect((res.body as ColumnDTO).key).toBe('colonne');
+    });
+
+    it('refuse un type hors enum (422 VALIDATION_FAILED)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: 'CASE À COCHER', type: 'CHECKBOX' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(res.body.message).toBe('Données invalides.');
+    });
+
+    it('refuse un libellé vide (422 VALIDATION_FAILED)', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookie)
+        .send({ label: '   ', type: 'TEXT' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+    });
+  });
 });
