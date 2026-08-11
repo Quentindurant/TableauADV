@@ -1,8 +1,16 @@
-import { Controller, UseGuards } from '@nestjs/common';
+import { Body, Controller, Param, Patch, UseGuards } from '@nestjs/common';
+import { updateChoiceSchema, type ChoiceDTO } from '@suivi/shared';
 import { JwtAuthGuard } from '../auth/jwt.guard';
+import { parseOrThrow } from '../common/api-error';
+import { ChoicesService } from './choices.service';
 
 @Controller('choices')
 @UseGuards(JwtAuthGuard)
 export class ChoicesController {
-  // Stub: PATCH/DELETE routes will be added in Tasks 3.8-3.9
+  constructor(private readonly choices: ChoicesService) {}
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: unknown): Promise<ChoiceDTO> {
+    return this.choices.update(id, parseOrThrow(updateChoiceSchema, body));
+  }
 }

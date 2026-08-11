@@ -143,4 +143,155 @@ describe('Choix de listes (e2e)', () => {
       expect(res.body.message).toBe('Données invalides.');
     });
   });
+
+  describe('PATCH /api/choices/:id', () => {
+    it('met à jour couleurs, gras et archivage', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'STAND BY', position: 0 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie)
+        .send({ bgColor: '#85C1E9', textColor: '#002060', bold: true, archived: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        label: 'STAND BY',
+        bgColor: '#85C1E9',
+        textColor: '#002060',
+        bold: true,
+        archived: true,
+      });
+    });
+
+    it('remet une couleur à null (retour au neutre)', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'A DISTANCE', position: 0, bgColor: '#FFFFFF' },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie)
+        .send({ bgColor: null });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ChoiceDTO).bgColor).toBeNull();
+    });
+
+    it(`propage le renommage aux lignes qui portaient l'ancienne valeur`, async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'ATT CLIENT', position: 0 },
+      });
+      const touched1 = await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { statut: 'ATT CLIENT', client: 'ARCADIA' } },
+      });
+      const touched2 = await prisma.row.create({
+        data: { month: '2026-09', position: 0, data: { statut: 'ATT CLIENT' } },
+      });
+      const untouched = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: { statut: 'NEW' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie)
+        .send({ label: 'ATTENTE CLIENT' });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ChoiceDTO).label).toBe('ATTENTE CLIENT');
+
+      const after1 = await prisma.row.findUniqueOrThrow({ where: { id: touched1.id } });
+      const after2 = await prisma.row.findUniqueOrThrow({ where: { id: touched2.id } });
+      const afterUntouched = await prisma.row.findUniqueOrThrow({ where: { id: untouched.id } });
+      expect(after1.data).toEqual({ statut: 'ATTENTE CLIENT', client: 'ARCADIA' });
+      expect(after2.data).toEqual({ statut: 'ATTENTE CLIENT' });
+      expect(afterUntouched.data).toEqual({ statut: 'NEW' });
+    });
+
+    it(`n'ajoute pas la clé aux lignes qui ne l'avaient pas`, async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'NEW', position: 0 },
+      });
+      const row = await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { client: 'ARCADIA' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie)
+        .send({ label: 'NOUVEAU' });
+
+      expect(res.status).toBe(200);
+      const after = await prisma.row.findUniqueOrThrow({ where: { id: row.id } });
+      expect(after.data).toEqual({ client: 'ARCADIA' });
+    });
+
+    it('refuse un renommage vers un libellé déjà présent dans la liste (422)', async () => {
+      const columnId = await createSelectColumn();
+      await prisma.choice.create({ data: { columnId, label: 'NEW', position: 0 } });
+      const second = await prisma.choice.create({
+        data: { columnId, label: 'STAGING', position: 1 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${second.id}`)
+        .set('Cookie', cookie)
+        .send({ label: 'NEW' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(res.body.message).toContain('NEW');
+    });
+
+    it('réordonne les choix de la liste', async () => {
+      const columnId = await createSelectColumn();
+      await prisma.choice.create({ data: { columnId, label: 'NEW', position: 0 } });
+      await prisma.choice.create({ data: { columnId, label: 'STAGING', position: 1 } });
+      const third = await prisma.choice.create({
+        data: { columnId, label: 'CLOTUREE', position: 2 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${third.id}`)
+        .set('Cookie', cookie)
+        .send({ position: 0 });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ChoiceDTO).position).toBe(0);
+      const ordered = await prisma.choice.findMany({ where: { columnId }, orderBy: { position: 'asc' } });
+      expect(ordered.map((choice) => choice.label)).toEqual(['CLOTUREE', 'NEW', 'STAGING']);
+    });
+
+    it('renvoie 404 NOT_FOUND pour un id inconnu', async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/api/choices/choix_inexistant')
+        .set('Cookie', cookie)
+        .send({ label: 'PEU IMPORTE' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('NOT_FOUND');
+      expect(res.body.message).toBe('Valeur de liste introuvable.');
+    });
+
+    it('refuse une couleur non hexadécimale (422 VALIDATION_FAILED)', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'NEW', position: 0 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie)
+        .send({ bgColor: 'rouge' });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+      expect(res.body.message).toBe('Données invalides.');
+    });
+  });
 });
