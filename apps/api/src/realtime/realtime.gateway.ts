@@ -162,6 +162,55 @@ export class RealtimeGateway
     });
   }
 
+  @SubscribeMessage('cell.lock.request')
+  handleLockRequest(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { rowId?: unknown; colKey?: unknown },
+  ): { granted: boolean; holder?: UserDTO } {
+    const user = client.data.user as UserDTO | undefined;
+    const room = this.presence.getRoom(client.id);
+    const rowId = typeof body?.rowId === 'string' ? body.rowId : '';
+    const colKey = typeof body?.colKey === 'string' ? body.colKey : '';
+    if (user === undefined || room === null || rowId === '' || colKey === '') {
+      return { granted: false };
+    }
+
+    const result = this.locks.acquire({
+      rowId,
+      colKey,
+      userId: user.id,
+      socketId: client.id,
+      room,
+    });
+
+    if (!result.granted) {
+      const holder =
+        result.holderUserId === undefined
+          ? undefined
+          : this.presence.findUserById(result.holderUserId);
+      return holder === undefined ? { granted: false } : { granted: false, holder };
+    }
+
+    this.server.to(room).emit('cell.lock', { rowId, colKey, user });
+    return { granted: true };
+  }
+
+  @SubscribeMessage('cell.lock.release')
+  handleLockRelease(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() body: { rowId?: unknown; colKey?: unknown },
+  ): void {
+    const rowId = typeof body?.rowId === 'string' ? body.rowId : '';
+    const colKey = typeof body?.colKey === 'string' ? body.colKey : '';
+    if (rowId === '' || colKey === '') {
+      return;
+    }
+    const released = this.locks.release({ rowId, colKey, socketId: client.id });
+    if (released !== null) {
+      this.server.to(released.room).emit('cell.unlock', { rowId, colKey });
+    }
+  }
+
   /** Balaye les verrous expires et previent les rooms concernees. */
   sweepExpiredLocks(now: number = Date.now()): void {
     for (const lock of this.locks.sweep(now)) {

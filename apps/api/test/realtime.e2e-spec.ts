@@ -8,6 +8,8 @@ import type { UserDTO } from '@suivi/shared';
 import { AppModule } from '../src/app.module';
 import { setupApp } from '../src/app.setup';
 import { PrismaService } from '../src/prisma/prisma.service';
+import { LOCK_TTL_MS } from '../src/realtime/locks.service';
+import { RealtimeGateway } from '../src/realtime/realtime.gateway';
 
 jest.setTimeout(30_000);
 
@@ -58,6 +60,20 @@ describe('Realtime (e2e)', () => {
   /** Petite attente pour laisser le serveur traiter un message sans ack. */
   function settle(ms = 150): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /** Envoie un message avec callback d ack (acknowledgement). */
+  function ask<T>(socket: Socket, event: string, payload: unknown, timeoutMs = 5_000): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Aucun ack pour "${event}" en ${timeoutMs} ms`)),
+        timeoutMs,
+      );
+      socket.emit(event, payload, (response: T) => {
+        clearTimeout(timer);
+        resolve(response);
+      });
+    });
   }
 
   async function login(email: string, password: string): Promise<string> {
@@ -245,6 +261,146 @@ describe('Realtime (e2e)', () => {
       socketB.emit('cell.focus', { rowId: null });
 
       expect(await focus).toEqual({ userId: bob.id, rowId: null, colKey: null });
+    });
+  });
+
+  describe('verrous de cellule', () => {
+    interface LockAck {
+      granted: boolean;
+      holder?: UserDTO;
+    }
+
+    async function deuxClientsDansLaMemeRoom(): Promise<[Socket, Socket]> {
+      const socketA = await connect(cookieAlice);
+      socketA.emit('room.join', { room: 'month:2026-08' });
+      await once<PresencePayload>(socketA, 'presence');
+
+      const socketB = await connect(cookieBob);
+      const aDeux = once<PresencePayload>(socketA, 'presence');
+      socketB.emit('room.join', { room: 'month:2026-08' });
+      await aDeux;
+
+      return [socketA, socketB];
+    }
+
+    it('accorde le verrou au premier demandeur et diffuse cell.lock a la room', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      const diffusion = once<{ rowId: string; colKey: string; user: UserDTO }>(
+        socketB,
+        'cell.lock',
+      );
+      const ack = await ask<LockAck>(socketA, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+
+      expect(ack).toEqual({ granted: true });
+      expect(await diffusion).toEqual({
+        rowId: 'row-1',
+        colKey: 'client',
+        user: alice,
+      });
+    });
+
+    it('refuse le verrou a l autre utilisateur et renvoie le detenteur', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const refus = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+
+      expect(refus.granted).toBe(false);
+      expect(refus.holder).toEqual(alice);
+    });
+
+    it('accorde une autre cellule de la meme ligne au second utilisateur', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const ack = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'statut',
+      });
+
+      expect(ack).toEqual({ granted: true });
+    });
+
+    it('libere le verrou sur cell.lock.release et diffuse cell.unlock', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const unlock = once<{ rowId: string; colKey: string }>(socketB, 'cell.unlock');
+      socketA.emit('cell.lock.release', { rowId: 'row-1', colKey: 'client' });
+
+      expect(await unlock).toEqual({ rowId: 'row-1', colKey: 'client' });
+
+      const ack = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+      expect(ack).toEqual({ granted: true });
+    });
+
+    it('ignore une liberation demandee par un autre socket que le detenteur', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      socketB.emit('cell.lock.release', { rowId: 'row-1', colKey: 'client' });
+      await settle();
+
+      const refus = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+      expect(refus.granted).toBe(false);
+      expect(refus.holder).toEqual(alice);
+    });
+
+    it('libere les verrous du socket a la deconnexion et diffuse cell.unlock', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const unlock = once<{ rowId: string; colKey: string }>(socketB, 'cell.unlock');
+      socketA.disconnect();
+
+      expect(await unlock).toEqual({ rowId: 'row-1', colKey: 'client' });
+
+      const ack = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+      expect(ack).toEqual({ granted: true });
+    });
+
+    it('balaie les verrous expires et diffuse cell.unlock', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const unlock = once<{ rowId: string; colKey: string }>(socketB, 'cell.unlock');
+
+      app.get(RealtimeGateway).sweepExpiredLocks(Date.now() + LOCK_TTL_MS + 1);
+
+      expect(await unlock).toEqual({ rowId: 'row-1', colKey: 'client' });
+    });
+
+    it('renouvelle le verrou du meme socket sans le perdre', async () => {
+      const [socketA, socketB] = await deuxClientsDansLaMemeRoom();
+
+      await ask<LockAck>(socketA, 'cell.lock.request', { rowId: 'row-1', colKey: 'client' });
+      const renouvellement = await ask<LockAck>(socketA, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+      expect(renouvellement).toEqual({ granted: true });
+
+      const refus = await ask<LockAck>(socketB, 'cell.lock.request', {
+        rowId: 'row-1',
+        colKey: 'client',
+      });
+      expect(refus.granted).toBe(false);
     });
   });
 });
