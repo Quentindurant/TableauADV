@@ -197,4 +197,129 @@ describe('Colonnes (e2e)', () => {
       expect(res.body.code).toBe('VALIDATION_FAILED');
     });
   });
+
+  describe('PATCH /api/columns/:id', () => {
+    async function seedThreeColumns(): Promise<string[]> {
+      const a = await prisma.column.create({
+        data: { key: 'impe', label: 'IMPE', type: 'DATE', position: 0, width: 150 },
+      });
+      const b = await prisma.column.create({
+        data: { key: 'client', label: 'CLIENT', type: 'TEXT', position: 1, width: 150 },
+      });
+      const c = await prisma.column.create({
+        data: { key: 'dpt', label: 'DPT', type: 'TEXT', position: 2, width: 150 },
+      });
+      return [a.id, b.id, c.id];
+    }
+
+    async function keysInOrder(): Promise<string[]> {
+      const columns = await prisma.column.findMany({ orderBy: { position: 'asc' } });
+      return columns.map((column) => column.key);
+    }
+
+    it("renomme la colonne sans changer sa cle", async () => {
+      const [, clientId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${clientId}`)
+        .set('Cookie', cookie)
+        .send({ label: 'CLIENT FINAL' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ key: 'client', label: 'CLIENT FINAL' });
+    });
+
+    it("met a jour largeur et visibilite", async () => {
+      const [impeId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${impeId}`)
+        .set('Cookie', cookie)
+        .send({ width: 240, visible: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ width: 240, visible: false, position: 0 });
+    });
+
+    it("change le type d une colonne remplie sans toucher aux valeurs", async () => {
+      const [, clientId] = await seedThreeColumns();
+      const row = await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { client: '12345' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${clientId}`)
+        .set('Cookie', cookie)
+        .send({ type: 'NUMBER' });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ key: 'client', type: 'NUMBER' });
+
+      // Les valeurs deja saisies sont conservees telles quelles (aucune conversion).
+      const reloaded = await prisma.row.findUniqueOrThrow({ where: { id: row.id } });
+      expect((reloaded.data as Record<string, unknown>).client).toBe('12345');
+    });
+
+    it("deplace une colonne vers le haut et decale les autres", async () => {
+      const [, , dptId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${dptId}`)
+        .set('Cookie', cookie)
+        .send({ position: 0 });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ColumnDTO).position).toBe(0);
+      expect(await keysInOrder()).toEqual(['dpt', 'impe', 'client']);
+    });
+
+    it("deplace une colonne vers le bas et decale les autres", async () => {
+      const [impeId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${impeId}`)
+        .set('Cookie', cookie)
+        .send({ position: 2 });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ColumnDTO).position).toBe(2);
+      expect(await keysInOrder()).toEqual(['client', 'dpt', 'impe']);
+    });
+
+    it("borne une position cible trop grande a la derniere place", async () => {
+      const [impeId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${impeId}`)
+        .set('Cookie', cookie)
+        .send({ position: 99 });
+
+      expect(res.status).toBe(200);
+      expect((res.body as ColumnDTO).position).toBe(2);
+      expect(await keysInOrder()).toEqual(['client', 'dpt', 'impe']);
+    });
+
+    it("renvoie 404 NOT_FOUND pour un id inconnu", async () => {
+      const res = await request(app.getHttpServer())
+        .patch('/api/columns/col_inexistante')
+        .set('Cookie', cookie)
+        .send({ label: 'PEU IMPORTE' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('NOT_FOUND');
+      expect(res.body.message).toBe('Colonne introuvable.');
+    });
+
+    it("refuse une largeur non entiere (422 VALIDATION_FAILED)", async () => {
+      const [impeId] = await seedThreeColumns();
+
+      const res = await request(app.getHttpServer())
+        .patch(`/api/columns/${impeId}`)
+        .set('Cookie', cookie)
+        .send({ width: 150.5 });
+
+      expect(res.status).toBe(422);
+      expect(res.body.code).toBe('VALIDATION_FAILED');
+    });
+  });
 });

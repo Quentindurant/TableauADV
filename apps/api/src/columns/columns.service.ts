@@ -1,5 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import type { ColumnDTO, ColumnType } from '@suivi/shared';
+import { ApiException, notFound } from '../common/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { toColumnDTO } from './mappers';
 import { slugify, uniqueKey } from './slugify';
@@ -7,6 +8,14 @@ import { slugify, uniqueKey } from './slugify';
 export interface CreateColumnInput {
   label: string;
   type: ColumnType;
+}
+
+export interface UpdateColumnInput {
+  label?: string;
+  type?: ColumnType;
+  position?: number;
+  width?: number;
+  visible?: boolean;
 }
 
 const DEFAULT_WIDTH = 150;
@@ -49,5 +58,55 @@ export class ColumnsService {
     });
 
     return toColumnDTO(created);
+  }
+
+  async update(id: string, input: UpdateColumnInput): Promise<ColumnDTO> {
+    const existing = await this.prisma.column.findUnique({ where: { id } });
+    if (!existing) {
+      throw notFound('Colonne introuvable.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      let targetPosition: number | undefined;
+
+      if (input.position !== undefined && input.position !== existing.position) {
+        const total = await tx.column.count();
+        const from = existing.position;
+        const to = Math.min(Math.max(input.position, 0), total - 1);
+
+        if (to < from) {
+          // Decalage vers la droite des colonnes situees entre la cible et l'ancienne place.
+          await tx.column.updateMany({
+            where: { id: { not: id }, position: { gte: to, lt: from } },
+            data: { position: { increment: 1 } },
+          });
+        } else if (to > from) {
+          // Decalage vers la gauche des colonnes situees entre l'ancienne place et la cible.
+          await tx.column.updateMany({
+            where: { id: { not: id }, position: { gt: from, lte: to } },
+            data: { position: { decrement: 1 } },
+          });
+        }
+        targetPosition = to;
+      }
+
+      return tx.column.update({
+        where: { id },
+        data: {
+          // La cle n'est jamais recalculee : les valeurs des lignes sont indexees par `key`.
+          ...(input.label !== undefined ? { label: input.label.trim() } : {}),
+          // Le type est toujours modifiable : on persiste le nouveau type sans
+          // convertir les valeurs deja stockees (elles restent telles quelles et
+          // sont reinterpretees par le nouveau type a l'affichage).
+          ...(input.type !== undefined ? { type: input.type } : {}),
+          ...(input.width !== undefined ? { width: input.width } : {}),
+          ...(input.visible !== undefined ? { visible: input.visible } : {}),
+          ...(targetPosition !== undefined ? { position: targetPosition } : {}),
+        },
+        include: { choices: { orderBy: { position: 'asc' } } },
+      });
+    });
+
+    return toColumnDTO(updated);
   }
 }
