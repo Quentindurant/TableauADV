@@ -5,6 +5,7 @@ import * as argon2 from 'argon2';
 import { AppModule } from '../../src/app.module';
 import { setupApp } from '../../src/app.setup';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import { seed } from '../../prisma/seed';
 
 const TEST_EMAIL = 'config.e2e@test.fr';
 const TEST_PASSWORD = 'motdepasse-test';
@@ -56,6 +57,11 @@ export async function resetConfigTables(prisma: PrismaService): Promise<void> {
   await prisma.row.deleteMany();
   await prisma.choice.deleteMany();
   await prisma.column.deleteMany();
+}
+
+/** Restaure la base de données au état seedé (16 colonnes + choix). */
+export async function reseedConfigTables(prisma: PrismaService): Promise<void> {
+  await seed(prisma);
 }
 
 export async function closeConfigTestContext(ctx: ConfigTestContext): Promise<void> {

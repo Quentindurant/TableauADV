@@ -6,6 +6,7 @@ import {
   closeConfigTestContext,
   createConfigTestContext,
   resetConfigTables,
+  reseedConfigTables,
   type ConfigTestContext,
 } from './helpers/config-test-app';
 
@@ -29,6 +30,8 @@ describe('Colonnes (e2e)', () => {
   });
 
   afterAll(async () => {
+    // Restaure la base de données au état seedé pour les suites voisines
+    await reseedConfigTables(prisma);
     await closeConfigTestContext(ctx);
   });
 
