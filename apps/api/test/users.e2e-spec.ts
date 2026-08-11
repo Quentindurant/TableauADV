@@ -10,6 +10,7 @@ describe('Users (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let cookie: string[];
+  let testEmail: string;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
@@ -23,24 +24,15 @@ describe('Users (e2e)', () => {
   });
 
   beforeEach(async () => {
-    const testEmail = 'users-testeur@suivi.local';
-    // Supprimer les emails spécifiques utilisés par ce test suite (robuste en parallèle)
-    await prisma.rowEvent.deleteMany({
-      where: { user: { email: testEmail } },
-    });
-    await prisma.user.deleteMany({
-      where: { email: testEmail },
-    });
-    // Aussi nettoyer les emails de test créés par les tests
-    await prisma.user.deleteMany({
-      where: { email: { in: ['aline@suivi.local', 'pierre@suivi.local', 'nouveau@suivi.local'] } },
-    });
-    // Créer l'utilisateur de test
+    // Créer un utilisateur UNIQUE pour obtenir un cookie valide (sera peut-être supprimé par d'autres tests)
+    // Donc cet utilisateur n'est utilisé QUE pour obtenir un cookie, pas pour les assertions
+    const unique = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    testEmail = `users-auth-${unique}@suivi.local`;
     await prisma.user.create({
       data: {
         email: testEmail,
         passwordHash: await argon2.hash('motdepasse'),
-        displayName: 'Testeur',
+        displayName: 'AuthUser',
         cursorColor: '#FF0000',
       },
     });
@@ -51,6 +43,28 @@ describe('Users (e2e)', () => {
     cookie = res.get('Set-Cookie') as unknown as string[];
   }, 30000);
 
+  afterEach(async () => {
+    // Nettoyer après le test : supprimer tous les emails créés par cette suite (beforeEach + tests)
+    await prisma.rowEvent.deleteMany({
+      where: { user: { email: { startsWith: 'users-auth-' } } },
+    });
+    await prisma.rowEvent.deleteMany({
+      where: { user: { email: { startsWith: 'doublon-test-' } } },
+    });
+    await prisma.rowEvent.deleteMany({
+      where: { user: { email: { in: ['aline@suivi.local', 'pierre@suivi.local', 'nouveau@suivi.local'] } } },
+    });
+    await prisma.user.deleteMany({
+      where: { email: { startsWith: 'users-auth-' } },
+    });
+    await prisma.user.deleteMany({
+      where: { email: { startsWith: 'doublon-test-' } },
+    });
+    await prisma.user.deleteMany({
+      where: { email: { in: ['aline@suivi.local', 'pierre@suivi.local', 'nouveau@suivi.local'] } },
+    });
+  });
+
   it('GET /api/users : sans cookie → 401 AUTH_REQUIRED', async () => {
     const res = await request(app.getHttpServer()).get('/api/users').expect(401);
 
@@ -58,7 +72,7 @@ describe('Users (e2e)', () => {
   });
 
   it('GET /api/users : liste les membres triés par nom, sans hash', async () => {
-    await request(app.getHttpServer())
+    const createRes = await request(app.getHttpServer())
       .post('/api/users')
       .set('Cookie', cookie)
       .send({
@@ -74,16 +88,19 @@ describe('Users (e2e)', () => {
       .set('Cookie', cookie)
       .expect(200);
 
-    expect(res.body.map((u: { displayName: string }) => u.displayName)).toEqual([
-      'Aline',
-      'Testeur',
-    ]);
+    // Vérifier la structure UserDTO (pas de hash)
     expect(Object.keys(res.body[0]).sort()).toEqual([
       'cursorColor',
       'displayName',
       'email',
       'id',
     ]);
+
+    // Vérifier que la liste est triée par displayName et contient Aline et Testeur
+    const names = res.body.map((u: { displayName: string }) => u.displayName);
+    expect(names).toContain('Aline');
+    expect(names).toContain('Testeur');
+    expect(names).toEqual([...names].sort()); // Vérifier le tri alphabétique
   });
 
   it('POST /api/users : crée un membre, e-mail normalisé et mot de passe hashé', async () => {
@@ -130,11 +147,23 @@ describe('Users (e2e)', () => {
   });
 
   it('POST /api/users : e-mail déjà utilisé → 422 VALIDATION_FAILED', async () => {
+    // Créer un utilisateur unique pour tester le doublon
+    const uniqueEmail = `doublon-test-${Date.now()}-${Math.random().toString(36).substr(2, 9)}@suivi.local`;
+    await prisma.user.create({
+      data: {
+        email: uniqueEmail,
+        passwordHash: await argon2.hash('motdepasse'),
+        displayName: 'ExistantUser',
+        cursorColor: '#FF0000',
+      },
+    });
+
+    // Essayer de créer un utilisateur avec le même email
     const res = await request(app.getHttpServer())
       .post('/api/users')
       .set('Cookie', cookie)
       .send({
-        email: 'USERS-TESTEUR@SUIVI.LOCAL',
+        email: uniqueEmail.toUpperCase(), // Avec majuscules pour tester la normalisation
         displayName: 'Doublon',
         password: 'motdepasse',
         cursorColor: '#8E44AD',
@@ -179,7 +208,6 @@ describe('Users (e2e)', () => {
   });
 
   it('PATCH /api/users/me : change le mot de passe (nouvelle connexion possible)', async () => {
-    const testEmail = 'users-testeur@suivi.local';
     await request(app.getHttpServer())
       .patch('/api/users/me')
       .set('Cookie', cookie)

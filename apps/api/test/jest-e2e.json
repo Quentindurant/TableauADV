@@ -7,5 +7,6 @@
   "moduleNameMapper": {
     "^@suivi/shared$": "<rootDir>/../../../packages/shared/src/index.ts"
   },
-  "setupFiles": ["dotenv/config"]
+  "setupFiles": ["dotenv/config"],
+  "maxWorkers": 1
 }
