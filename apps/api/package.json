@@ -53,5 +53,8 @@
       "^@suivi/shared$": "<rootDir>/../../../packages/shared/src/index.ts"
     },
     "testEnvironment": "node"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
   }
 }
