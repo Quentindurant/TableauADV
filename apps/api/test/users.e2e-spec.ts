@@ -72,7 +72,7 @@ describe('Users (e2e)', () => {
   });
 
   it('GET /api/users : liste les membres triés par nom, sans hash', async () => {
-    const createRes = await request(app.getHttpServer())
+    await request(app.getHttpServer())
       .post('/api/users')
       .set('Cookie', cookie)
       .send({
