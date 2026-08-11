@@ -23,11 +23,22 @@ describe('Users (e2e)', () => {
   });
 
   beforeEach(async () => {
-    await prisma.rowEvent.deleteMany();
-    await prisma.user.deleteMany();
+    const testEmail = 'users-testeur@suivi.local';
+    // Supprimer les emails spécifiques utilisés par ce test suite (robuste en parallèle)
+    await prisma.rowEvent.deleteMany({
+      where: { user: { email: testEmail } },
+    });
+    await prisma.user.deleteMany({
+      where: { email: testEmail },
+    });
+    // Aussi nettoyer les emails de test créés par les tests
+    await prisma.user.deleteMany({
+      where: { email: { in: ['aline@suivi.local', 'pierre@suivi.local', 'nouveau@suivi.local'] } },
+    });
+    // Créer l'utilisateur de test
     await prisma.user.create({
       data: {
-        email: 'test@suivi.local',
+        email: testEmail,
         passwordHash: await argon2.hash('motdepasse'),
         displayName: 'Testeur',
         cursorColor: '#FF0000',
@@ -35,7 +46,7 @@ describe('Users (e2e)', () => {
     });
     const res = await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'test@suivi.local', password: 'motdepasse' })
+      .send({ email: testEmail, password: 'motdepasse' })
       .expect(200);
     cookie = res.get('Set-Cookie') as unknown as string[];
   }, 30000);
@@ -123,7 +134,7 @@ describe('Users (e2e)', () => {
       .post('/api/users')
       .set('Cookie', cookie)
       .send({
-        email: 'TEST@suivi.local',
+        email: 'USERS-TESTEUR@SUIVI.LOCAL',
         displayName: 'Doublon',
         password: 'motdepasse',
         cursorColor: '#8E44AD',
@@ -168,6 +179,7 @@ describe('Users (e2e)', () => {
   });
 
   it('PATCH /api/users/me : change le mot de passe (nouvelle connexion possible)', async () => {
+    const testEmail = 'users-testeur@suivi.local';
     await request(app.getHttpServer())
       .patch('/api/users/me')
       .set('Cookie', cookie)
@@ -176,12 +188,12 @@ describe('Users (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'test@suivi.local', password: 'nouveaumotdepasse' })
+      .send({ email: testEmail, password: 'nouveaumotdepasse' })
       .expect(200);
 
     await request(app.getHttpServer())
       .post('/api/auth/login')
-      .send({ email: 'test@suivi.local', password: 'motdepasse' })
+      .send({ email: testEmail, password: 'motdepasse' })
       .expect(401);
   });
 
