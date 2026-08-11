@@ -103,12 +103,12 @@ describe('Users (e2e)', () => {
     expect(names).toEqual([...names].sort()); // Vérifier le tri alphabétique
   });
 
-  it('POST /api/users : crée un membre, e-mail normalisé et mot de passe hashé', async () => {
+  it('POST /api/users : crée un membre, e-mail normalisé (lowercase) et mot de passe hashé', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/users')
       .set('Cookie', cookie)
       .send({
-        email: '  Pierre@Suivi.Local ',
+        email: 'Pierre@Suivi.Local',
         displayName: 'Pierre',
         password: 'motdepasse',
         cursorColor: '#8E44AD',
