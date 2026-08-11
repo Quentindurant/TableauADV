@@ -10,7 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { createRowSchema, moveRowSchema, patchRowSchema, type RowDTO } from '@suivi/shared';
+import { createRowSchema, moveRowSchema, patchRowSchema, type RowDTO, type RowEventDTO } from '@suivi/shared';
 import { z } from 'zod';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -47,6 +47,11 @@ export class RowsController {
     return this.rows.findArchived();
   }
 
+  @Get('search')
+  async search(@Query('q') q?: string): Promise<RowDTO[]> {
+    return this.rows.search(q ?? '');
+  }
+
   @Post()
   @HttpCode(201)
   async create(@Body() body: unknown, @CurrentUserId() userId: string): Promise<RowDTO> {
@@ -60,6 +65,11 @@ export class RowsController {
     @CurrentUserId() userId: string,
   ): Promise<RowDTO> {
     return this.rows.patch(id, parseOrThrow(patchRowSchema, body), userId);
+  }
+
+  @Get(':id/events')
+  async events(@Param('id') id: string): Promise<RowEventDTO[]> {
+    return this.rows.listEvents(id);
   }
 
   @Post(':id/move')

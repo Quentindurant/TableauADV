@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import type { CellFormat, CellValue, RowDTO } from '@suivi/shared';
+import { Prisma, type Row } from '@prisma/client';
+import type { CellFormat, CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import { ApiException, notFound } from '../common/api.exception';
 import { RowEventsService } from '../events/row-events.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -41,6 +41,8 @@ export interface MoveRowInput {
 const CONFLICT_SCAN_LIMIT = 200;
 /** Nombre de rejeux d'une transaction sérialisable interrompue par un concurrent. */
 const SERIALIZATION_RETRIES = 3;
+/** Plafond de résultats de la recherche globale (contrat : max 200). */
+const SEARCH_LIMIT = 200;
 
 /** PostgreSQL 40001 / Prisma P2034 : la transaction doit être rejouée. */
 function isSerializationFailure(error: unknown): boolean {
@@ -311,5 +313,35 @@ export class RowsService {
       }
     }
     throw lastError;
+  }
+
+  /** Historique d'une ligne (404 si la ligne n'existe pas). */
+  async listEvents(id: string): Promise<RowEventDTO[]> {
+    const existing = await this.prisma.row.findUnique({ where: { id }, select: { id: true } });
+    if (existing === null) {
+      throw notFound('Ligne introuvable.');
+    }
+    return this.events.listForRow(id);
+  }
+
+  /**
+   * Recherche plein texte simple sur les valeurs de la ligne : `data::text`
+   * comparé en ILIKE, tous mois confondus, archives incluses.
+   * Le terme est passé en paramètre lié ; les jokers % et _ y sont échappés
+   * pour être cherchés littéralement.
+   */
+  async search(q: string): Promise<RowDTO[]> {
+    const term = q.trim();
+    if (term.length === 0) {
+      return [];
+    }
+    const pattern = `%${term.replace(/[\\%_]/g, (character) => `\\${character}`)}%`;
+    const rows = await this.prisma.$queryRaw<Row[]>`
+      SELECT * FROM "Row"
+      WHERE "data"::text ILIKE ${pattern}
+      ORDER BY "month" DESC, "position" ASC
+      LIMIT ${SEARCH_LIMIT}
+    `;
+    return rows.map(toRowDTO);
   }
 }
