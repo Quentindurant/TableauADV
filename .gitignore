@@ -8,6 +8,8 @@ coverage/
 .env.local
 .DS_Store
 apps/api/.env
+apps/web/playwright-report/
+apps/web/test-results/
 
 # override docker local (non versionné)
 docker-compose.override.yml
