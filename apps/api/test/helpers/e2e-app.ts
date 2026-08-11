@@ -12,6 +12,15 @@ export interface TestContext {
 }
 
 /**
+ * Helper e2e dédié aux tests de lignes (rows), distinct de config-test-app.ts :
+ * ce dernier utilise `app.init()` + un unique utilisateur fixe partagé (adapté
+ * aux suites columns/choices), alors que les tests de lignes ont besoin d'un
+ * vrai port HTTP (`listen(0)`) pour envoyer des requêtes concurrentes (PATCH,
+ * Task 4.5) — supertest ne peut pas fiabiliser des appels concurrents sur un
+ * serveur non-écoutant.
+ */
+
+/**
  * Démarre l'application de test avec EXACTEMENT la configuration de main.ts.
  * `listen(0)` (et non `init()`) : le serveur HTTP écoute sur un port libre
  * avant les tests, ce qui permet d'envoyer plusieurs requêtes supertest en
@@ -24,12 +33,15 @@ export async function createTestApp(): Promise<TestContext> {
   return { app, prisma: app.get(PrismaService) };
 }
 
-/** Vide les tables dans l'ordre des dépendances de clés étrangères. */
+/**
+ * Vide uniquement les tables nécessaires aux tests de lignes (row, rowEvent,
+ * user de test). Ne touche PAS `column`/`choice` : les lignes n'ont aucune FK
+ * vers ces tables de config, et les vider fragiliserait les suites voisines
+ * (columns/choices) sans aucun bénéfice pour ces tests — donc pas de reseed requis.
+ */
 export async function resetDb(prisma: PrismaService): Promise<void> {
   await prisma.rowEvent.deleteMany();
   await prisma.row.deleteMany();
-  await prisma.choice.deleteMany();
-  await prisma.column.deleteMany();
   await prisma.user.deleteMany();
 }
 

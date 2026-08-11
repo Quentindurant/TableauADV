@@ -6,9 +6,9 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "test": "jest --passWithNoTests && jest --config ./test/jest-e2e.json --runInBand",
+    "test": "jest --passWithNoTests && jest --config ./test/jest-e2e.json",
     "test:unit": "jest --passWithNoTests",
-    "test:e2e": "jest --config ./test/jest-e2e.json --runInBand"
+    "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",

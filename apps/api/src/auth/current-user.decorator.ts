@@ -1,4 +1,4 @@
-import { createParamDecorator, type ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { createParamDecorator, type ExecutionContext } from '@nestjs/common';
 import { authRequired } from '../common/api.exception';
 import type { AuthUser, AuthenticatedRequest } from './jwt.guard';
 
@@ -14,22 +14,14 @@ export function currentUserFactory(_data: unknown, context: ExecutionContext): A
 /** Usage : `me(@CurrentUser() user: AuthUser)`. */
 export const CurrentUser = createParamDecorator(currentUserFactory);
 
-interface RequestWithUser {
-  user?: { id?: string; sub?: string };
-}
-
 /**
  * Id de l'utilisateur connecté, posé sur la requête par JwtAuthGuard.
- * Accepte les deux formes possibles du payload JWT (`id` ou `sub`).
  */
 export const CurrentUserId = createParamDecorator((_data: unknown, ctx: ExecutionContext): string => {
-  const request = ctx.switchToHttp().getRequest<RequestWithUser>();
-  const userId = request.user?.id ?? request.user?.sub;
+  const request = ctx.switchToHttp().getRequest<AuthenticatedRequest>();
+  const userId = request.user?.id;
   if (userId === undefined) {
-    throw new UnauthorizedException({
-      code: 'AUTH_REQUIRED',
-      message: 'Authentification requise.',
-    });
+    throw authRequired();
   }
   return userId;
 });
