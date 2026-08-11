@@ -509,6 +509,44 @@ describe('Realtime (e2e)', () => {
       expect((await apparition).row.archived).toBe(true);
     });
 
+    it('utilise la bonne room lors d un archivage no-op (idempotent)', async () => {
+      // Crée et archive une ligne
+      const created = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: {}, formats: {} },
+      });
+      await request(app.getHttpServer())
+        .post(`/api/rows/${created.id}/archive`)
+        .set('Cookie', cookieAlice)
+        .send({ archived: true })
+        .expect(200);
+
+      // Prépare les sockets : une dans archives, une dans le mois
+      const socketArchives = await connect(cookieAlice);
+      socketArchives.emit('room.join', { room: 'archives' });
+      await once<PresencePayload>(socketArchives, 'presence');
+
+      const socketMois = await clientDansLaRoom('month:2026-08');
+
+      // Essaie d'archiver à nouveau (no-op : la ligne est déjà archivée)
+      // Les événements devraient partir à la room archives, pas à month:2026-08
+      const deletedInArchives = once<{ rowId: string }>(socketArchives, 'row.deleted', 1000);
+      const deletedInMonth = once<{ rowId: string }>(socketMois, 'row.deleted', 1000);
+
+      await request(app.getHttpServer())
+        .post(`/api/rows/${created.id}/archive`)
+        .set('Cookie', cookieAlice)
+        .send({ archived: true })
+        .expect(200);
+
+      // Vérifie que row.deleted arrive BIEN dans la room archives
+      expect(await deletedInArchives).toEqual({ rowId: created.id });
+
+      // Vérifie qu'aucun événement n'arrive dans la room du mois
+      await expect(deletedInMonth).rejects.toThrow(
+        new RegExp('Aucun evenement.*recu en 1000 ms'),
+      );
+    });
+
     it('diffuse config.changed a toutes les rooms apres POST /api/columns', async () => {
       const socketB = await clientDansLaRoom('archives');
 

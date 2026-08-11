@@ -271,7 +271,7 @@ export class RowsService {
     });
 
     const row = toRowDTO(updated);
-    this.emitter.emitRowDeleted(row.id, row.month, !row.archived);
+    this.emitter.emitRowDeleted(row.id, row.month, existing.archived);
     this.emitter.emitRowCreated(row);
     return row;
   }
