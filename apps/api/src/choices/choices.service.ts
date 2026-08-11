@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, HttpStatus } from '@nestjs/common';
+import { ApiException } from '../common/api.exception';
 import type { ChoiceDTO } from '@suivi/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { notFound, validationFailed } from '../common/api.exception';
@@ -164,5 +165,37 @@ export class ChoicesService {
       }
       throw error;
     }
+  }
+
+  /** Nombre de lignes dont la colonne `key` vaut exactement `label`. */
+  async countRowsUsingChoice(key: string, label: string): Promise<number> {
+    const result = await this.prisma.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count
+      FROM "Row"
+      WHERE "data" ->> ${key}::text = ${label}::text
+    `;
+    return result[0]?.count ?? 0;
+  }
+
+  async remove(id: string): Promise<void> {
+    const existing = await this.prisma.choice.findUnique({
+      where: { id },
+      include: { column: true },
+    });
+    if (!existing) {
+      throw notFound('Valeur de liste introuvable.');
+    }
+
+    const rowCount = await this.countRowsUsingChoice(existing.column.key, existing.label);
+    if (rowCount > 0) {
+      throw new ApiException(
+        'CHOICE_IN_USE',
+        `La valeur « ${existing.label} » est utilisée par ${rowCount} ligne(s). Archivez-la plutôt que de la supprimer : les lignes existantes la conservent et elle ne sera plus proposée à la saisie.`,
+        HttpStatus.CONFLICT,
+        { rowCount },
+      );
+    }
+
+    await this.prisma.choice.delete({ where: { id } });
   }
 }

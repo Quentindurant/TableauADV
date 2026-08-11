@@ -294,4 +294,88 @@ describe('Choix de listes (e2e)', () => {
       expect(res.body.message).toBe('Données invalides.');
     });
   });
+
+  describe('DELETE /api/choices/:id', () => {
+    it('supprime un choix inutilisé (204)', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'A DISTANCE', position: 0 },
+      });
+      await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { statut: 'NEW' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+      expect(await prisma.choice.count()).toBe(0);
+    });
+
+    it('refuse la suppression d\'un choix utilisé (409 CHOICE_IN_USE) et conseille l\'archivage', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'ATT PV', position: 0 },
+      });
+      await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { statut: 'ATT PV' } },
+      });
+      await prisma.row.create({
+        data: { month: '2026-09', position: 0, data: { statut: 'ATT PV' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('CHOICE_IN_USE');
+      expect(res.body.message).toContain('ATT PV');
+      expect(res.body.message).toContain('Archivez');
+      expect(res.body.details).toEqual({ rowCount: 2 });
+      expect(await prisma.choice.count()).toBe(1);
+    });
+
+    it('ne bloque pas sur une valeur identique portée par une autre colonne', async () => {
+      const statutId = await createSelectColumn();
+      const parte = await prisma.column.create({
+        data: { key: 'partenaire', label: 'PARTE', type: 'SELECT', position: 1, width: 150 },
+      });
+      const choice = await prisma.choice.create({
+        data: { columnId: statutId, label: 'CUBE', position: 0 },
+      });
+      await prisma.choice.create({ data: { columnId: parte.id, label: 'CUBE', position: 0 } });
+      await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { partenaire: 'CUBE' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/choices/${choice.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+    });
+
+    it('renvoie 404 NOT_FOUND pour un id inconnu', async () => {
+      const res = await request(app.getHttpServer())
+        .delete('/api/choices/choix_inexistant')
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('NOT_FOUND');
+      expect(res.body.message).toBe('Valeur de liste introuvable.');
+    });
+
+    it('refuse un appel sans cookie (401)', async () => {
+      const columnId = await createSelectColumn();
+      const choice = await prisma.choice.create({
+        data: { columnId, label: 'NEW', position: 0 },
+      });
+
+      const res = await request(app.getHttpServer()).delete(`/api/choices/${choice.id}`);
+
+      expect(res.status).toBe(401);
+    });
+  });
 });
