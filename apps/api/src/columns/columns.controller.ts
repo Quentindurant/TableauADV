@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { createColumnSchema, updateColumnSchema, type ColumnDTO } from '@suivi/shared';
@@ -33,5 +35,11 @@ export class ColumnsController {
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: unknown): Promise<ColumnDTO> {
     return this.columns.update(id, parseOrThrow(updateColumnSchema, body));
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id') id: string, @Query('force') force?: string): Promise<void> {
+    await this.columns.remove(id, force === 'true');
   }
 }

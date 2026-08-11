@@ -322,4 +322,107 @@ describe('Colonnes (e2e)', () => {
       expect(res.body.code).toBe('VALIDATION_FAILED');
     });
   });
+
+  describe('DELETE /api/columns/:id', () => {
+    it('supprime une colonne sans données (204)', async () => {
+      const column = await prisma.column.create({
+        data: { key: 'num_chrono', label: 'N° CHRONO', type: 'TEXT', position: 0, width: 150 },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/columns/${column.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+      expect(await prisma.column.count()).toBe(0);
+    });
+
+    it('refuse la suppression quand une ligne porte une valeur (409 COLUMN_HAS_DATA)', async () => {
+      const column = await prisma.column.create({
+        data: { key: 'client', label: 'CLIENT', type: 'TEXT', position: 0, width: 150 },
+      });
+      await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { client: 'ARCADIA' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/columns/${column.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(409);
+      expect(res.body.code).toBe('COLUMN_HAS_DATA');
+      expect(res.body.message).toContain('CLIENT');
+      expect(res.body.details).toEqual({ rowCount: 1 });
+      expect(await prisma.column.count()).toBe(1);
+    });
+
+    it('ne considère pas une valeur vide comme une donnée', async () => {
+      const column = await prisma.column.create({
+        data: { key: 'client', label: 'CLIENT', type: 'TEXT', position: 0, width: 150 },
+      });
+      await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { client: '', statut: 'NEW' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/columns/${column.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+    });
+
+    it('supprime avec ?force=true et retire la clé des données de toutes les lignes', async () => {
+      const column = await prisma.column.create({
+        data: { key: 'client', label: 'CLIENT', type: 'TEXT', position: 0, width: 150 },
+      });
+      const first = await prisma.row.create({
+        data: { month: '2026-08', position: 0, data: { client: 'ARCADIA', statut: 'NEW' } },
+      });
+      const second = await prisma.row.create({
+        data: { month: '2026-09', position: 0, data: { client: 'BETA', statut: 'CLOTUREE' } },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/columns/${column.id}?force=true`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+      expect(await prisma.column.count()).toBe(0);
+      const rows = await prisma.row.findMany({
+        where: { id: { in: [first.id, second.id] } },
+        orderBy: { month: 'asc' },
+      });
+      expect(rows[0].data).toEqual({ statut: 'NEW' });
+      expect(rows[1].data).toEqual({ statut: 'CLOTUREE' });
+    });
+
+    it('supprime aussi les choix de la colonne (cascade)', async () => {
+      const column = await prisma.column.create({
+        data: {
+          key: 'statut',
+          label: 'INSTALLATION',
+          type: 'SELECT',
+          position: 0,
+          width: 150,
+          choices: { create: [{ label: 'NEW', position: 0 }, { label: 'CLOTUREE', position: 1 }] },
+        },
+      });
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/columns/${column.id}`)
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(204);
+      expect(await prisma.choice.count()).toBe(0);
+    });
+
+    it('renvoie 404 NOT_FOUND pour un id inconnu', async () => {
+      const res = await request(app.getHttpServer())
+        .delete('/api/columns/col_inexistante')
+        .set('Cookie', cookie);
+
+      expect(res.status).toBe(404);
+      expect(res.body.code).toBe('NOT_FOUND');
+    });
+  });
 });

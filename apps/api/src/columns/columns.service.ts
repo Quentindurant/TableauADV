@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import type { ColumnDTO, ColumnType } from '@suivi/shared';
-import { notFound } from '../common/api.exception';
+import { ApiException, notFound } from '../common/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { toColumnDTO } from './mappers';
 import { slugify, uniqueKey } from './slugify';
@@ -108,5 +108,44 @@ export class ColumnsService {
     });
 
     return toColumnDTO(updated);
+  }
+
+  /** Nombre de lignes dont la colonne porte une valeur non vide. */
+  async countRowsWithValue(key: string): Promise<number> {
+    const result = await this.prisma.$queryRaw<{ count: number }[]>`
+      SELECT COUNT(*)::int AS count
+      FROM "Row"
+      WHERE "data" ->> ${key}::text IS NOT NULL
+        AND "data" ->> ${key}::text <> ''
+    `;
+    return result[0]?.count ?? 0;
+  }
+
+  async remove(id: string, force: boolean): Promise<void> {
+    const existing = await this.prisma.column.findUnique({ where: { id } });
+    if (!existing) {
+      throw notFound('Colonne introuvable.');
+    }
+
+    if (!force) {
+      const rowCount = await this.countRowsWithValue(existing.key);
+      if (rowCount > 0) {
+        throw new ApiException(
+          'COLUMN_HAS_DATA',
+          `La colonne « ${existing.label} » contient des données sur ${rowCount} ligne(s). Confirmez la suppression pour effacer aussi ces valeurs.`,
+          HttpStatus.CONFLICT,
+          { rowCount },
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Opérateur jsonb "-" : retire la clé de l'objet `data` de chaque ligne.
+      await tx.$executeRaw`
+        UPDATE "Row"
+        SET "data" = "data" - ${existing.key}::text
+      `;
+      await tx.column.delete({ where: { id } });
+    });
   }
 }
