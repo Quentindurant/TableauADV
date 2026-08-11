@@ -24,7 +24,7 @@ export const loginSchema = z.object({
 });
 
 export const createUserSchema = z.object({
-  email: z.string().email('Adresse e-mail invalide'),
+  email: z.string().trim().email('Adresse e-mail invalide'),
   displayName: z.string().trim().min(1, 'Nom affiché requis'),
   password: z.string().min(8, 'Mot de passe : 8 caractères minimum'),
   cursorColor: hexColor,
