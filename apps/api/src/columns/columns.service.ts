@@ -1,6 +1,6 @@
-import { HttpStatus, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { ColumnDTO, ColumnType } from '@suivi/shared';
-import { ApiException, notFound } from '../common/api.exception';
+import { notFound } from '../common/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
 import { toColumnDTO } from './mappers';
 import { slugify, uniqueKey } from './slugify';
