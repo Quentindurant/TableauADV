@@ -1,0 +1,101 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
+import { createRowSchema, moveRowSchema, patchRowSchema, type RowDTO, type RowEventDTO } from '@suivi/shared';
+import { z } from 'zod';
+import { CurrentUserId } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt.guard';
+import { parseOrThrow } from '../common/api-error';
+import { RowsService } from './rows.service';
+
+/** Filtre obligatoire de GET /api/rows : soit ?month=YYYY-MM, soit ?archived=true. */
+const listRowsQuerySchema = z
+  .object({
+    month: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Mois attendu au format AAAA-MM')
+      .optional(),
+    archived: z.literal('true').optional(),
+  })
+  .refine((query) => query.month !== undefined || query.archived === 'true', {
+    message: 'Filtre requis : month=AAAA-MM ou archived=true.',
+  });
+
+/** Corps de POST /api/rows/:id/archive (schéma local : absent des contrats partagés). */
+const archiveBodySchema = z.object({ archived: z.boolean() });
+
+@Controller('rows')
+@UseGuards(JwtAuthGuard)
+export class RowsController {
+  constructor(private readonly rows: RowsService) {}
+
+  @Get()
+  async list(@Query() query: unknown): Promise<RowDTO[]> {
+    const filter = parseOrThrow(listRowsQuerySchema, query);
+    if (filter.month !== undefined) {
+      return this.rows.findByMonth(filter.month);
+    }
+    return this.rows.findArchived();
+  }
+
+  @Get('search')
+  async search(@Query('q') q?: string): Promise<RowDTO[]> {
+    return this.rows.search(q ?? '');
+  }
+
+  @Post()
+  @HttpCode(201)
+  async create(@Body() body: unknown, @CurrentUserId() userId: string): Promise<RowDTO> {
+    return this.rows.create(parseOrThrow(createRowSchema, body), userId);
+  }
+
+  @Patch(':id')
+  async patch(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    return this.rows.patch(id, parseOrThrow(patchRowSchema, body), userId);
+  }
+
+  @Get(':id/events')
+  async events(@Param('id') id: string): Promise<RowEventDTO[]> {
+    return this.rows.listEvents(id);
+  }
+
+  @Post(':id/move')
+  @HttpCode(200)
+  async move(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    return this.rows.move(id, parseOrThrow(moveRowSchema, body), userId);
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  async archive(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    const dto = parseOrThrow(archiveBodySchema, body);
+    return this.rows.archive(id, dto.archived, userId);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.rows.remove(id);
+  }
+}
