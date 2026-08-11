@@ -64,8 +64,12 @@ export async function reseedConfigTables(prisma: PrismaService): Promise<void> {
   await seed(prisma);
 }
 
+/**
+ * Ferme l'application et supprime l'utilisateur de test.
+ * Ne vide PAS les tables de configuration : le reseed éventuel est à la charge
+ * de l'appelant AVANT cet appel (ex. reseedConfigTables dans afterAll).
+ */
 export async function closeConfigTestContext(ctx: ConfigTestContext): Promise<void> {
-  await resetConfigTables(ctx.prisma);
   await ctx.prisma.user.deleteMany({ where: { email: TEST_EMAIL } });
   await ctx.app.close();
 }
