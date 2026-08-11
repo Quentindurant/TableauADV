@@ -4,6 +4,7 @@ import type { CellFormat, CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import { ApiException, notFound } from '../common/api.exception';
 import { RowEventsService } from '../events/row-events.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEmitter } from '../realtime/realtime.emitter';
 import {
   buildDiff,
   changedKeysOf,
@@ -63,6 +64,7 @@ export class RowsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: RowEventsService,
+    private readonly emitter: RealtimeEmitter,
   ) {}
 
   /** Lignes actives d'un mois, dans l'ordre manuel. */
@@ -112,7 +114,9 @@ export class RowsService {
       return row;
     });
 
-    return toRowDTO(created);
+    const row = toRowDTO(created);
+    this.emitter.emitRowCreated(row);
+    return row;
   }
 
   /**
@@ -185,7 +189,9 @@ export class RowsService {
       return saved;
     });
 
-    return toRowDTO(updated);
+    const row = toRowDTO(updated);
+    this.emitter.emitRowUpdated(row, keys, userId);
+    return row;
   }
 
   /**
@@ -237,7 +243,9 @@ export class RowsService {
       return tx.row.findUniqueOrThrow({ where: { id } });
     });
 
-    return toRowDTO(moved);
+    const row = toRowDTO(moved);
+    this.emitter.emitRowMoved(row, existing.month);
+    return row;
   }
 
   /**
@@ -262,7 +270,10 @@ export class RowsService {
       return tx.row.findUniqueOrThrow({ where: { id } });
     });
 
-    return toRowDTO(updated);
+    const row = toRowDTO(updated);
+    this.emitter.emitRowDeleted(row.id, row.month, existing.archived);
+    this.emitter.emitRowCreated(row);
+    return row;
   }
 
   /**
@@ -279,6 +290,8 @@ export class RowsService {
       await tx.row.delete({ where: { id } });
       await this.renumberMonth(tx, existing.month);
     });
+
+    this.emitter.emitRowDeleted(id, existing.month, existing.archived);
   }
 
   /** Réécrit les positions actives d'un mois en 0..n-1 sans changer l'ordre. */

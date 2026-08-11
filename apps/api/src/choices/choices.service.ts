@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { notFound, validationFailed } from '../common/api.exception';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { toChoiceDTO } from '../columns/mappers';
+import { RealtimeEmitter } from '../realtime/realtime.emitter';
 
 export interface CreateChoiceInput {
   label: string;
@@ -24,7 +25,10 @@ export interface UpdateChoiceInput {
 
 @Injectable()
 export class ChoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emitter: RealtimeEmitter,
+  ) {}
 
   async create(columnId: string, input: CreateChoiceInput): Promise<ChoiceDTO> {
     const column = await this.prisma.column.findUnique({ where: { id: columnId } });
@@ -67,7 +71,9 @@ export class ChoicesService {
         });
       });
 
-      return toChoiceDTO(created);
+      const dto = toChoiceDTO(created);
+      this.emitter.emitConfigChanged('choices');
+      return dto;
     } catch (error) {
       // Course entre deux créations concurrentes du même libellé : le
       // pré-check ci-dessus laisse une fenêtre entre deux requêtes
@@ -154,7 +160,9 @@ export class ChoicesService {
         return choice;
       });
 
-      return toChoiceDTO(updated);
+      const dto = toChoiceDTO(updated);
+      this.emitter.emitConfigChanged('choices');
+      return dto;
     } catch (error) {
       // Course entre deux renommages concurrents vers le même libellé : le
       // pré-check ci-dessus laisse une fenêtre entre deux requêtes
@@ -197,5 +205,6 @@ export class ChoicesService {
     }
 
     await this.prisma.choice.delete({ where: { id } });
+    this.emitter.emitConfigChanged('choices');
   }
 }

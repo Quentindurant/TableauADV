@@ -15,7 +15,8 @@ export interface AuthenticatedRequest extends Request {
   user?: AuthUser;
 }
 
-interface JwtPayload {
+/** Payload signé côté HTTP (login) — réutilisé tel quel par le handshake WS (Feature 5). */
+export interface JwtPayload {
   sub: string;
   email: string;
 }

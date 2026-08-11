@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { RealtimeEmitter } from '../realtime/realtime.emitter';
 import { ChoicesService } from './choices.service';
 
 /** Simule la violation Postgres de contrainte unique (P2002) que Prisma remonte. */
@@ -8,6 +9,11 @@ function uniqueConstraintError(): Prisma.PrismaClientKnownRequestError {
     'Unique constraint failed on the fields: (`columnId`,`label`)',
     { code: 'P2002', clientVersion: '6.19.3' },
   );
+}
+
+/** Émetteur factice : ces tests couvrent des chemins d'erreur avant toute émission. */
+function fakeEmitter(): RealtimeEmitter {
+  return { emitConfigChanged: jest.fn() } as unknown as RealtimeEmitter;
 }
 
 describe('ChoicesService', () => {
@@ -27,7 +33,7 @@ describe('ChoicesService', () => {
         $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
       } as unknown as PrismaService;
 
-      const service = new ChoicesService(prisma);
+      const service = new ChoicesService(prisma, fakeEmitter());
 
       const error = await service.create('c1', { label: 'Nouveau' }).then(
         () => {
@@ -59,7 +65,7 @@ describe('ChoicesService', () => {
         $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
       } as unknown as PrismaService;
 
-      const service = new ChoicesService(prisma);
+      const service = new ChoicesService(prisma, fakeEmitter());
 
       await expect(service.create('c1', { label: 'Nouveau' })).rejects.toBe(boom);
     });
@@ -97,7 +103,7 @@ describe('ChoicesService', () => {
         $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
       } as unknown as PrismaService;
 
-      const service = new ChoicesService(prisma);
+      const service = new ChoicesService(prisma, fakeEmitter());
 
       const error = await service.update('ch1', { label: 'Nouveau' }).then(
         () => {
@@ -131,7 +137,7 @@ describe('ChoicesService', () => {
         $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
       } as unknown as PrismaService;
 
-      const service = new ChoicesService(prisma);
+      const service = new ChoicesService(prisma, fakeEmitter());
 
       await expect(service.update('ch1', { label: 'Nouveau' })).rejects.toBe(boom);
     });

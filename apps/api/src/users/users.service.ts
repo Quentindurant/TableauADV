@@ -5,6 +5,7 @@ import type { z } from 'zod';
 import { createUserSchema, updateMeSchema, type UserDTO } from '@suivi/shared';
 import { validationFailed } from '../common/api.exception';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEmitter } from '../realtime/realtime.emitter';
 import { normalizeEmail, toUserDTO } from './user.mapper';
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
@@ -14,7 +15,10 @@ const EMAIL_DEJA_UTILISE = 'Cette adresse e-mail est déjà utilisée.';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emitter: RealtimeEmitter,
+  ) {}
 
   async list(): Promise<UserDTO[]> {
     const users = await this.prisma.user.findMany({ orderBy: { displayName: 'asc' } });
@@ -39,7 +43,9 @@ export class UsersService {
           passwordHash: await argon2.hash(input.password),
         },
       });
-      return toUserDTO(user);
+      const dto = toUserDTO(user);
+      this.emitter.emitConfigChanged('users');
+      return dto;
     } catch (error) {
       // Course entre deux créations simultanées : contrainte unique Postgres.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -63,6 +69,8 @@ export class UsersService {
       data.passwordHash = await argon2.hash(input.password);
     }
     const user = await this.prisma.user.update({ where: { id }, data });
-    return toUserDTO(user);
+    const dto = toUserDTO(user);
+    this.emitter.emitConfigChanged('users');
+    return dto;
   }
 }

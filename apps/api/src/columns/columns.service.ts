@@ -3,6 +3,7 @@ import type { ColumnDTO, ColumnType } from '@suivi/shared';
 import { ApiException, notFound, validationFailed } from '../common/api.exception';
 import { isUniqueConstraintViolation } from '../common/prisma-errors';
 import { PrismaService } from '../prisma/prisma.service';
+import { RealtimeEmitter } from '../realtime/realtime.emitter';
 import { toColumnDTO } from './mappers';
 import { slugify, uniqueKey } from './slugify';
 
@@ -23,7 +24,10 @@ const DEFAULT_WIDTH = 150;
 
 @Injectable()
 export class ColumnsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly emitter: RealtimeEmitter,
+  ) {}
 
   async findAll(): Promise<ColumnDTO[]> {
     const columns = await this.prisma.column.findMany({
@@ -59,7 +63,9 @@ export class ColumnsService {
         });
       });
 
-      return toColumnDTO(created);
+      const dto = toColumnDTO(created);
+      this.emitter.emitConfigChanged('columns');
+      return dto;
     } catch (error) {
       // Course entre deux créations concurrentes du même libellé : la clé
       // slugifiée calculée dans la transaction peut collisionner avec un
@@ -118,7 +124,9 @@ export class ColumnsService {
       });
     });
 
-    return toColumnDTO(updated);
+    const dto = toColumnDTO(updated);
+    this.emitter.emitConfigChanged('columns');
+    return dto;
   }
 
   /** Nombre de lignes dont la colonne porte une valeur non vide. */
@@ -158,5 +166,7 @@ export class ColumnsService {
       `;
       await tx.column.delete({ where: { id } });
     });
+
+    this.emitter.emitConfigChanged('columns');
   }
 }

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { RealtimeEmitter } from '../realtime/realtime.emitter';
 import { ColumnsService } from './columns.service';
 
 /** Simule la violation Postgres de contrainte unique (P2002) que Prisma remonte. */
@@ -8,6 +9,11 @@ function uniqueConstraintError(): Prisma.PrismaClientKnownRequestError {
     'Unique constraint failed on the fields: (`key`)',
     { code: 'P2002', clientVersion: '6.19.3' },
   );
+}
+
+/** Émetteur factice : ces tests couvrent des chemins d'erreur avant toute émission. */
+function fakeEmitter(): RealtimeEmitter {
+  return { emitConfigChanged: jest.fn() } as unknown as RealtimeEmitter;
 }
 
 describe('ColumnsService', () => {
@@ -23,7 +29,7 @@ describe('ColumnsService', () => {
       const transaction = jest.fn((callback: (tx: unknown) => unknown) => callback(tx));
       const prisma = { $transaction: transaction } as unknown as PrismaService;
 
-      const service = new ColumnsService(prisma);
+      const service = new ColumnsService(prisma, fakeEmitter());
 
       const error = await service.create({ label: 'Statut', type: 'TEXT' }).then(
         () => {
@@ -53,7 +59,7 @@ describe('ColumnsService', () => {
         $transaction: jest.fn((callback: (tx: unknown) => unknown) => callback(tx)),
       } as unknown as PrismaService;
 
-      const service = new ColumnsService(prisma);
+      const service = new ColumnsService(prisma, fakeEmitter());
 
       await expect(service.create({ label: 'Statut', type: 'TEXT' })).rejects.toBe(boom);
     });
