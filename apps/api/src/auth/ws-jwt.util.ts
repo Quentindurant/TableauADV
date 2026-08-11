@@ -5,14 +5,14 @@
  * l'application HTTP : on lit donc l'en-tete `Cookie` brut du handshake et on
  * en extrait le cookie httpOnly `token` pose par `POST /api/auth/login`.
  */
+import { AUTH_COOKIE_NAME } from './cookie';
+import type { JwtPayload } from './jwt.guard';
 
-/** Nom du cookie JWT httpOnly, identique au contrat REST. */
-export const AUTH_COOKIE_NAME = 'token';
+/** Nom du cookie JWT httpOnly, identique au contrat REST (source unique : `./cookie`). */
+export { AUTH_COOKIE_NAME };
 
-/** Payload minimal du JWT emis par la Feature 2. */
-export interface WsJwtPayload {
-  sub: string;
-}
+/** Payload du JWT emis par la Feature 2 (alias de `JwtPayload` : meme secret, meme forme, cote HTTP et WS). */
+export type WsJwtPayload = JwtPayload;
 
 /** Partie du handshake Socket.IO dont on a besoin (facilite les tests). */
 export interface WsHandshakeLike {
@@ -24,9 +24,7 @@ export interface WsHandshakeLike {
  * Premier cookie gagnant en cas de doublon ; valeur rendue telle quelle si
  * `decodeURIComponent` echoue (cookie non encode).
  */
-export function parseCookieHeader(
-  header: string | undefined | null,
-): Record<string, string> {
+export function parseCookieHeader(header: string | undefined | null): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!header) {
     return cookies;
@@ -56,8 +54,6 @@ export function parseCookieHeader(
 
 /** Extrait le JWT du handshake, ou `null` si absent. */
 export function tokenFromHandshake(handshake: WsHandshakeLike): string | null {
-  const token: string | undefined = parseCookieHeader(handshake.headers.cookie)[
-    AUTH_COOKIE_NAME
-  ];
+  const token: string | undefined = parseCookieHeader(handshake.headers.cookie)[AUTH_COOKIE_NAME];
   return token !== undefined && token.length > 0 ? token : null;
 }

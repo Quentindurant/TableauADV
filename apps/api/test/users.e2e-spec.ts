@@ -96,10 +96,13 @@ describe('Users (e2e)', () => {
       'id',
     ]);
 
-    // Vérifier que la liste est triée par displayName et contient Aline et Testeur
+    // Vérifier que la liste est triée par displayName et contient Aline et AuthUser
+    // (AuthUser est créé par le beforeEach de CE fichier : contrairement à 'Testeur'
+    // d'auth.e2e-spec.ts, sa présence ne dépend pas de l'ordre d'exécution des
+    // suites e2e sur la base Postgres partagée).
     const names = res.body.map((u: { displayName: string }) => u.displayName);
     expect(names).toContain('Aline');
-    expect(names).toContain('Testeur');
+    expect(names).toContain('AuthUser');
     expect(names).toEqual([...names].sort()); // Vérifier le tri alphabétique
   });
 
