@@ -403,4 +403,157 @@ describe('Realtime (e2e)', () => {
       expect(refus.granted).toBe(false);
     });
   });
+
+  describe('diffusion des mutations REST', () => {
+    interface RowPayload {
+      row: { id: string; month: string; version: number; data: Record<string, unknown> };
+      changedKeys: string[];
+      byUserId: string;
+    }
+
+    async function clientDansLaRoom(room: string): Promise<Socket> {
+      const socket = await connect(cookieBob);
+      socket.emit('room.join', { room });
+      await once<PresencePayload>(socket, 'presence');
+      return socket;
+    }
+
+    it('diffuse row.updated dans la room du mois apres un PATCH /api/rows/:id', async () => {
+      const created = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: { client: 'ARCADIA' }, formats: {} },
+      });
+      const socketB = await clientDansLaRoom('month:2026-08');
+
+      const recu = once<RowPayload>(socketB, 'row.updated');
+      await request(app.getHttpServer())
+        .patch(`/api/rows/${created.id}`)
+        .set('Cookie', cookieAlice)
+        .send({ expectedVersion: created.version, patch: { client: 'BETA SARL' } })
+        .expect(200);
+
+      const payload = await recu;
+      expect(payload.row.id).toBe(created.id);
+      expect(payload.row.data.client).toBe('BETA SARL');
+      expect(payload.row.version).toBe(created.version + 1);
+      expect(payload.changedKeys).toEqual(['client']);
+      expect(payload.byUserId).toBe(alice.id);
+    });
+
+    it('diffuse row.created dans la room du mois apres un POST /api/rows', async () => {
+      const socketB = await clientDansLaRoom('month:2026-09');
+
+      const recu = once<{ row: { month: string } }>(socketB, 'row.created');
+      await request(app.getHttpServer())
+        .post('/api/rows')
+        .set('Cookie', cookieAlice)
+        .send({ month: '2026-09' })
+        .expect(201);
+
+      expect((await recu).row.month).toBe('2026-09');
+    });
+
+    it('diffuse row.deleted dans la room du mois apres un DELETE /api/rows/:id', async () => {
+      const created = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: {}, formats: {} },
+      });
+      const socketB = await clientDansLaRoom('month:2026-08');
+
+      const recu = once<{ rowId: string }>(socketB, 'row.deleted');
+      await request(app.getHttpServer())
+        .delete(`/api/rows/${created.id}`)
+        .set('Cookie', cookieAlice)
+        .expect(204);
+
+      expect(await recu).toEqual({ rowId: created.id });
+    });
+
+    it('diffuse row.moved dans la room de depart apres un POST /api/rows/:id/move', async () => {
+      const created = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: {}, formats: {} },
+      });
+      const socketB = await clientDansLaRoom('month:2026-08');
+
+      const recu = once<{ row: { month: string }; fromMonth: string }>(socketB, 'row.moved');
+      await request(app.getHttpServer())
+        .post(`/api/rows/${created.id}/move`)
+        .set('Cookie', cookieAlice)
+        .send({ month: '2026-09' })
+        .expect(200);
+
+      const payload = await recu;
+      expect(payload.fromMonth).toBe('2026-08');
+      expect(payload.row.month).toBe('2026-09');
+    });
+
+    it('diffuse row.deleted puis row.created lors d un archivage', async () => {
+      const created = await prisma.row.create({
+        data: { month: '2026-08', position: 1, data: {}, formats: {} },
+      });
+      const socketMois = await clientDansLaRoom('month:2026-08');
+      const socketArchives = await connect(cookieAlice);
+      socketArchives.emit('room.join', { room: 'archives' });
+      await once<PresencePayload>(socketArchives, 'presence');
+
+      const disparition = once<{ rowId: string }>(socketMois, 'row.deleted');
+      const apparition = once<{ row: { id: string; archived: boolean } }>(
+        socketArchives,
+        'row.created',
+      );
+      await request(app.getHttpServer())
+        .post(`/api/rows/${created.id}/archive`)
+        .set('Cookie', cookieAlice)
+        .send({ archived: true })
+        .expect(200);
+
+      expect(await disparition).toEqual({ rowId: created.id });
+      expect((await apparition).row.archived).toBe(true);
+    });
+
+    it('diffuse config.changed a toutes les rooms apres POST /api/columns', async () => {
+      const socketB = await clientDansLaRoom('archives');
+
+      const recu = once<{ scope: string }>(socketB, 'config.changed');
+      await request(app.getHttpServer())
+        .post('/api/columns')
+        .set('Cookie', cookieAlice)
+        .send({ label: 'CLIENT', type: 'TEXT' })
+        .expect(201);
+
+      expect(await recu).toEqual({ scope: 'columns' });
+    });
+
+    it('diffuse config.changed scope choices apres POST /api/columns/:id/choices', async () => {
+      const column = await prisma.column.create({
+        data: { key: 'statut', label: 'INSTALLATION', type: 'SELECT', position: 1 },
+      });
+      const socketB = await clientDansLaRoom('month:2026-08');
+
+      const recu = once<{ scope: string }>(socketB, 'config.changed');
+      await request(app.getHttpServer())
+        .post(`/api/columns/${column.id}/choices`)
+        .set('Cookie', cookieAlice)
+        .send({ label: 'NEW', bgColor: '#FFFF00', textColor: '#FF0000', bold: true })
+        .expect(201);
+
+      expect(await recu).toEqual({ scope: 'choices' });
+    });
+
+    it('diffuse config.changed scope users apres POST /api/users', async () => {
+      const socketB = await clientDansLaRoom('month:2026-08');
+
+      const recu = once<{ scope: string }>(socketB, 'config.changed');
+      await request(app.getHttpServer())
+        .post('/api/users')
+        .set('Cookie', cookieAlice)
+        .send({
+          email: 'carole@suivi.local',
+          displayName: 'Carole',
+          password: 'motdepasse',
+          cursorColor: '#00AA00',
+        })
+        .expect(201);
+
+      expect(await recu).toEqual({ scope: 'users' });
+    });
+  });
 });
