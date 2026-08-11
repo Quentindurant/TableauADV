@@ -238,6 +238,47 @@ export class RowsService {
     return toRowDTO(moved);
   }
 
+  /**
+   * Archive ou désarchive une ligne. À l'archivage, le mois est renuméroté ;
+   * au désarchivage, la ligne revient en fin de son mois d'origine.
+   */
+  async archive(id: string, archived: boolean, userId: string): Promise<RowDTO> {
+    const existing = await this.prisma.row.findUnique({ where: { id } });
+    if (existing === null) {
+      throw notFound('Ligne introuvable.');
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (archived) {
+        await tx.row.update({ where: { id }, data: { archived: true } });
+      } else {
+        const active = await tx.row.count({ where: { month: existing.month, archived: false } });
+        await tx.row.update({ where: { id }, data: { archived: false, position: active } });
+      }
+      await this.renumberMonth(tx, existing.month);
+      await this.events.record(tx, { rowId: id, userId, type: 'archive', payload: { archived } });
+      return tx.row.findUniqueOrThrow({ where: { id } });
+    });
+
+    return toRowDTO(updated);
+  }
+
+  /**
+   * Supprime définitivement une ligne et renumérote son mois.
+   * Aucun RowEvent 'delete' n'est consigné : RowEvent.rowId est en cascade,
+   * l'événement serait effacé par la suppression dans la même transaction.
+   */
+  async remove(id: string): Promise<void> {
+    const existing = await this.prisma.row.findUnique({ where: { id } });
+    if (existing === null) {
+      throw notFound('Ligne introuvable.');
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.row.delete({ where: { id } });
+      await this.renumberMonth(tx, existing.month);
+    });
+  }
+
   /** Réécrit les positions actives d'un mois en 0..n-1 sans changer l'ordre. */
   private async renumberMonth(tx: Prisma.TransactionClient, month: string): Promise<void> {
     const rows = await tx.row.findMany({

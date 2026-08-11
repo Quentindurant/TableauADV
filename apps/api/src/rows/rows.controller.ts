@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Param,
@@ -28,6 +29,9 @@ const listRowsQuerySchema = z
   .refine((query) => query.month !== undefined || query.archived === 'true', {
     message: 'Filtre requis : month=AAAA-MM ou archived=true.',
   });
+
+/** Corps de POST /api/rows/:id/archive (schéma local : absent des contrats partagés). */
+const archiveBodySchema = z.object({ archived: z.boolean() });
 
 @Controller('rows')
 @UseGuards(JwtAuthGuard)
@@ -66,5 +70,22 @@ export class RowsController {
     @CurrentUserId() userId: string,
   ): Promise<RowDTO> {
     return this.rows.move(id, parseOrThrow(moveRowSchema, body), userId);
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  async archive(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    const dto = parseOrThrow(archiveBodySchema, body);
+    return this.rows.archive(id, dto.archived, userId);
+  }
+
+  @Delete(':id')
+  @HttpCode(204)
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.rows.remove(id);
   }
 }
