@@ -28,6 +28,11 @@ export interface PatchRowInput {
   formats?: Record<string, CellFormat | null>;
 }
 
+export interface MoveRowInput {
+  month?: string;
+  position?: number;
+}
+
 /**
  * Fenêtre d'événements relus pour la détection de conflit. Un client ne peut
  * pas détenir une version antérieure à 200 éditions (toute reconnexion
@@ -179,6 +184,72 @@ export class RowsService {
     });
 
     return toRowDTO(updated);
+  }
+
+  /**
+   * Déplace une ligne dans son mois ou vers un autre mois.
+   * L'ordre cible est reconstruit explicitement (liste d'ids + splice) puis
+   * réécrit en 0..n-1 ; le mois source est renuméroté à son tour.
+   */
+  async move(id: string, dto: MoveRowInput, userId: string): Promise<RowDTO> {
+    const existing = await this.prisma.row.findUnique({ where: { id } });
+    if (existing === null) {
+      throw notFound('Ligne introuvable.');
+    }
+    const targetMonth = dto.month ?? existing.month;
+
+    const moved = await this.prisma.$transaction(async (tx) => {
+      const others = await tx.row.findMany({
+        where: { month: targetMonth, archived: false, id: { not: id } },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true },
+      });
+      const ids = others.map((row) => row.id);
+      const target = Math.min(Math.max(dto.position ?? ids.length, 0), ids.length);
+      ids.splice(target, 0, id);
+
+      for (let index = 0; index < ids.length; index += 1) {
+        await tx.row.update({
+          where: { id: ids[index] },
+          data:
+            ids[index] === id ? { month: targetMonth, position: index } : { position: index },
+        });
+      }
+
+      if (existing.month !== targetMonth) {
+        await this.renumberMonth(tx, existing.month);
+      }
+
+      await this.events.record(tx, {
+        rowId: id,
+        userId,
+        type: 'move',
+        payload: {
+          fromMonth: existing.month,
+          toMonth: targetMonth,
+          fromPosition: existing.position,
+          toPosition: target,
+        },
+      });
+
+      return tx.row.findUniqueOrThrow({ where: { id } });
+    });
+
+    return toRowDTO(moved);
+  }
+
+  /** Réécrit les positions actives d'un mois en 0..n-1 sans changer l'ordre. */
+  private async renumberMonth(tx: Prisma.TransactionClient, month: string): Promise<void> {
+    const rows = await tx.row.findMany({
+      where: { month, archived: false },
+      orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      select: { id: true, position: true },
+    });
+    for (let index = 0; index < rows.length; index += 1) {
+      if (rows[index].position !== index) {
+        await tx.row.update({ where: { id: rows[index].id }, data: { position: index } });
+      }
+    }
   }
 
   /** Transaction sérialisable, rejouée si un concurrent l'a fait échouer. */

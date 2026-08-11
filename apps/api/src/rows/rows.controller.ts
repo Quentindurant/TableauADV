@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { createRowSchema, patchRowSchema, type RowDTO } from '@suivi/shared';
+import { createRowSchema, moveRowSchema, patchRowSchema, type RowDTO } from '@suivi/shared';
 import { z } from 'zod';
 import { CurrentUserId } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -56,5 +56,15 @@ export class RowsController {
     @CurrentUserId() userId: string,
   ): Promise<RowDTO> {
     return this.rows.patch(id, parseOrThrow(patchRowSchema, body), userId);
+  }
+
+  @Post(':id/move')
+  @HttpCode(200)
+  async move(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUserId() userId: string,
+  ): Promise<RowDTO> {
+    return this.rows.move(id, parseOrThrow(moveRowSchema, body), userId);
   }
 }
