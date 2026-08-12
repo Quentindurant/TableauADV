@@ -6,11 +6,15 @@ import {
   AllCommunityModule,
   ModuleRegistry,
   themeQuartz,
+  type CellClickedEvent,
   type CellContextMenuEvent,
+  type CellKeyDownEvent,
   type CellValueChangedEvent,
   type ColumnMovedEvent,
   type ColumnResizedEvent,
   type GetRowIdParams,
+  type GridApi,
+  type GridReadyEvent,
   type RowDragEndEvent,
 } from 'ag-grid-community';
 import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
@@ -19,6 +23,7 @@ import { useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
 import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
 import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
+import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { RowContextMenu } from './RowContextMenu';
 import { RowHistoryPanel } from './RowHistoryPanel';
 
@@ -79,6 +84,53 @@ export function DataGrid({ reload }: DataGridProps) {
       showToast: useAppStore.getState().showToast,
     }),
     [reload],
+  );
+
+  const gridApiRef = useRef<GridApi<RowDTO> | null>(null);
+  // Sélection verticale suivie à la main (la sélection de plage est Enterprise) :
+  // clic simple = 1 cellule ; Maj+clic dans la MÊME colonne = étend depuis l'ancre.
+  const selectionRef = useRef<{ colKey: string; anchor: number; indexes: number[] }>({
+    colKey: '',
+    anchor: -1,
+    indexes: [],
+  });
+
+  const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const onCellClicked = useCallback((event: CellClickedEvent<RowDTO>) => {
+    const colKey = event.column.getColId();
+    const rowIndex = event.rowIndex ?? 0;
+    const mouse = event.event as MouseEvent | null;
+    const current = selectionRef.current;
+    if (mouse?.shiftKey && current.colKey === colKey && current.anchor >= 0) {
+      const lo = Math.min(current.anchor, rowIndex);
+      const hi = Math.max(current.anchor, rowIndex);
+      const indexes: number[] = [];
+      for (let i = lo; i <= hi; i += 1) indexes.push(i);
+      selectionRef.current = { colKey, anchor: current.anchor, indexes };
+    } else {
+      selectionRef.current = { colKey, anchor: rowIndex, indexes: [rowIndex] };
+    }
+  }, []);
+
+  const onCellKeyDown = useCallback(
+    (event: CellKeyDownEvent<RowDTO>) => {
+      const keyboard = event.event as KeyboardEvent | null;
+      if (!keyboard || !(keyboard.ctrlKey || keyboard.metaKey)) return;
+      const key = keyboard.key.toLowerCase();
+      if (key === 'c') {
+        keyboard.preventDefault();
+        void copyFocusedCell(event.api, (text) => navigator.clipboard.writeText(text));
+      } else if (key === 'v') {
+        keyboard.preventDefault();
+        const colKey = event.api.getFocusedCell()?.column.getColId() ?? '';
+        const indexes = selectionRef.current.colKey === colKey ? selectionRef.current.indexes : [];
+        void pasteFocusedColumn(event.api, () => navigator.clipboard.readText(), indexes, deps);
+      }
+    },
+    [deps],
   );
 
   // --- Toast : disparition automatique après 6 s ---------------------------
@@ -242,10 +294,15 @@ export function DataGrid({ reload }: DataGridProps) {
           rowDragManaged
           preventDefaultOnContextMenu
           animateRows={false}
+          enableCellTextSelection={true}
+          ensureDomOrder={true}
+          onGridReady={onGridReady}
           onCellValueChanged={onCellValueChanged}
           onColumnResized={onColumnResized}
           onColumnMoved={onColumnMoved}
           onRowDragEnd={onRowDragEnd}
+          onCellClicked={onCellClicked}
+          onCellKeyDown={onCellKeyDown}
           onCellContextMenu={onCellContextMenu}
         />
       </div>
