@@ -18,7 +18,7 @@ import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
 import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
-import { debounce, resolveColumnId } from './columnLayout';
+import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
 import { RowContextMenu } from './RowContextMenu';
 import { RowHistoryPanel } from './RowHistoryPanel';
 
@@ -89,37 +89,56 @@ export function DataGrid({ reload }: DataGridProps) {
   }, [toast]);
 
   // --- Persistance de la largeur et de l'ordre des colonnes ----------------
-  const persistWidth = useRef(
-    debounce((colKey: string, width: number) => {
-      const id = resolveColumnId(useAppStore.getState().columns, colKey);
-      if (!id) return;
-      void api.patchColumn(id, { width }).catch((error: unknown) => {
-        useAppStore.getState().showToast(messageForError(error), 'error');
-      });
-    }, 400),
-  ).current;
+  // Initialisation paresseuse : `useRef(<expr>).current` évaluerait <expr> à
+  // CHAQUE rendu (l'objet/la closure construit(e) serait aussitôt jetée,
+  // seul `.current` du premier rendu étant conservé) ; on n'initialise donc
+  // qu'au premier accès, via `useRef<T | null>(null)` + garde.
 
-  const persistPosition = useRef(
-    debounce((colKey: string, position: number) => {
-      const id = resolveColumnId(useAppStore.getState().columns, colKey);
-      if (!id) return;
-      void api
-        .patchColumn(id, { position })
-        .then((updated) => {
-          const next = useAppStore
-            .getState()
-            .columns.map((column) => (column.id === updated.id ? updated : column));
-          useAppStore.getState().setColumns(next);
-        })
-        .catch((error: unknown) => {
-          useAppStore.getState().showToast(messageForError(error), 'error');
-        });
-    }, 400),
-  ).current;
+  // Dépendances partagées par les deux persisteurs : résolues à l'appel (via
+  // `getState()`) pour ne jamais fermer sur un état de store obsolète.
+  const layoutDepsRef = useRef<PersistColumnFieldDeps | null>(null);
+  if (!layoutDepsRef.current) {
+    layoutDepsRef.current = {
+      getColumns: () => useAppStore.getState().columns,
+      patchColumn: api.patchColumn,
+      setColumns: (next) => useAppStore.getState().setColumns(next),
+      onError: (error) => useAppStore.getState().showToast(messageForError(error), 'error'),
+    };
+  }
+  const layoutDeps = layoutDepsRef.current;
+
+  // Coalescence PAR COLONNE (`colKey`) : redimensionner/déplacer la colonne A
+  // puis la colonne B dans la même fenêtre de 400 ms produit un PATCH par
+  // colonne — un debounce global ferait perdre silencieusement celui de A.
+  type ColumnFieldDebouncer = ReturnType<typeof debouncePerKey<[string, number]>>;
+
+  const persistWidthRef = useRef<ColumnFieldDebouncer | null>(null);
+  if (!persistWidthRef.current) {
+    persistWidthRef.current = debouncePerKey(
+      (colKey: string, width: number) => {
+        void persistColumnField(colKey, { width }, layoutDeps);
+      },
+      400,
+      (colKey: string) => colKey,
+    );
+  }
+  const persistWidth = persistWidthRef.current;
+
+  const persistPositionRef = useRef<ColumnFieldDebouncer | null>(null);
+  if (!persistPositionRef.current) {
+    persistPositionRef.current = debouncePerKey(
+      (colKey: string, position: number) => {
+        void persistColumnField(colKey, { position }, layoutDeps);
+      },
+      400,
+      (colKey: string) => colKey,
+    );
+  }
+  const persistPosition = persistPositionRef.current;
 
   useEffect(() => () => {
-    persistWidth.cancel();
-    persistPosition.cancel();
+    persistWidth.cancelAll();
+    persistPosition.cancelAll();
   }, [persistWidth, persistPosition]);
 
   const onColumnResized = useCallback(
