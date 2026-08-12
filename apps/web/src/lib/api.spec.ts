@@ -83,13 +83,13 @@ describe('apiFetch', () => {
     }
   });
 
-  it("déduit un code depuis le statut quand le corps n'est pas typé", async () => {
+  it("déduit un code depuis le statut quand le corps n'est pas typé (fallback INTERNAL hors mapping)", async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response('<html>502</html>', { status: 502 })),
     );
     await expect(apiFetch('/months')).rejects.toMatchObject({
-      code: 'VALIDATION_FAILED',
+      code: 'INTERNAL',
       status: 502,
     });
   });

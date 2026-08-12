@@ -47,12 +47,19 @@ export function serverApiBaseUrl(): string {
   return process.env.API_INTERNAL_URL ?? apiBaseUrl ?? 'http://localhost:3001';
 }
 
-function codeForStatus(status: number): ApiErrorCode {
-  if (status === 401) return 'AUTH_REQUIRED';
-  if (status === 404) return 'NOT_FOUND';
-  if (status === 409) return 'VERSION_CONFLICT';
-  return 'VALIDATION_FAILED';
-}
+/**
+ * Mapping statut HTTP -> code métier, utilisé uniquement quand le corps de
+ * la réponse n'est pas une `ApiError` exploitable. Le fallback DOIT rester
+ * 'INTERNAL' : un 500/403 étiqueté 'VALIDATION_FAILED' présenterait une
+ * panne serveur comme une erreur de saisie à l'utilisateur.
+ */
+const STATUS_TO_CODE: Record<number, ApiErrorCode> = {
+  400: 'VALIDATION_FAILED',
+  401: 'AUTH_REQUIRED',
+  404: 'NOT_FOUND',
+  409: 'VERSION_CONFLICT',
+  422: 'VALIDATION_FAILED',
+};
 
 function isApiError(body: unknown): body is ApiError {
   return (
@@ -64,20 +71,36 @@ function isApiError(body: unknown): body is ApiError {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(apiUrl(path), {
-    ...init,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
-  });
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      credentials: 'include',
+      ...init,
+      headers,
+    });
+  } catch {
+    throw new ApiRequestError(
+      'INTERNAL',
+      'Serveur injoignable. Vérifiez votre connexion.',
+      0,
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
 
   const text = await response.text();
-  let body: unknown = null;
-  if (text.length > 0) {
-    try {
-      body = JSON.parse(text);
-    } catch {
-      body = null;
-    }
+  let body: unknown;
+  try {
+    body = text.length > 0 ? JSON.parse(text) : undefined;
+  } catch {
+    body = undefined;
   }
 
   if (!response.ok) {
@@ -90,8 +113,8 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       );
     }
     throw new ApiRequestError(
-      codeForStatus(response.status),
-      'Le serveur a refusé la requête. Réessayez dans un instant.',
+      STATUS_TO_CODE[response.status] ?? 'INTERNAL',
+      'Une erreur est survenue. Réessayez.',
       response.status,
     );
   }
