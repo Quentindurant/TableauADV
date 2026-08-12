@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { RowDTO } from '@suivi/shared';
 import * as api from '../../../lib/api';
 import { useAppStore } from '../../../lib/store';
-import { SearchBar } from '../../../components/grid/SearchBar';
 import { formatMonthLabel } from '../../../components/grid/MonthTabs';
 import { messageForError } from '../../../components/grid/cellCommit';
 
@@ -70,8 +69,6 @@ function ResultatsRecherche() {
 
   return (
     <div style={{ padding: 12 }}>
-      <SearchBar initialQuery={query} />
-
       {loading ? <p data-testid="search-loading">Recherche en cours…</p> : null}
 
       {!loading && query.trim() !== '' && rows.length === 0 ? (

@@ -6,8 +6,6 @@ import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { DataGrid } from '../../components/grid/DataGrid';
 import { MonthTabs, latestMonth } from '../../components/grid/MonthTabs';
-import { PresenceBar } from '../../components/grid/PresenceBar';
-import { SearchBar } from '../../components/grid/SearchBar';
 import { messageForError } from '../../components/grid/cellCommit';
 
 export default function MoisPage() {
@@ -92,24 +90,7 @@ export default function MoisPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 16,
-          padding: '8px 12px',
-          borderBottom: '1px solid #D8DEE4',
-          background: '#F7F9FB',
-        }}
-      >
-        <strong style={{ fontSize: 15 }}>Suivi commandes</strong>
-        <SearchBar />
-        <div style={{ marginLeft: 'auto' }}>
-          <PresenceBar />
-        </div>
-      </header>
-
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       {ready ? (
         <DataGrid reload={reload} />
       ) : (

@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation';
 import * as api from '../../../lib/api';
 import { useAppStore } from '../../../lib/store';
 import { DataGrid } from '../../../components/grid/DataGrid';
-import { PresenceBar } from '../../../components/grid/PresenceBar';
-import { SearchBar } from '../../../components/grid/SearchBar';
 import { messageForError } from '../../../components/grid/cellCommit';
 
 export default function ArchivesPage() {
@@ -55,19 +53,17 @@ export default function ArchivesPage() {
   }, [router]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
-      <header
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
+          gap: 12,
           padding: '8px 12px',
-          borderBottom: '1px solid #D8DEE4',
-          background: '#F7F9FB',
+          borderBottom: '1px solid #EDF1F5',
         }}
       >
-        <strong style={{ fontSize: 15 }}>Suivi commandes — Archives</strong>
-        <SearchBar />
+        <strong style={{ fontSize: 14 }}>Archives</strong>
         <button
           type="button"
           data-testid="back-to-months"
@@ -82,10 +78,7 @@ export default function ArchivesPage() {
         >
           Retour aux mois
         </button>
-        <div style={{ marginLeft: 'auto' }}>
-          <PresenceBar />
-        </div>
-      </header>
+      </div>
 
       {ready ? (
         <DataGrid reload={reload} />

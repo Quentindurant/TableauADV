@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { UserDTO } from '@suivi/shared';
-import { LogoutButton } from '../../components/LogoutButton';
+import { AppHeader } from '../../components/AppHeader';
 import { serverApiBaseUrl } from '../../lib/api';
 
 /**
@@ -34,26 +34,18 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          padding: '0.75rem 1rem',
-          borderBottom: '1px solid #d5d8dc',
-        }}
-      >
-        <strong style={{ marginRight: 'auto' }}>Suivi commandes</strong>
-        <span
-          data-testid="current-user"
-          style={{ color: user.cursorColor, fontWeight: 600 }}
-        >
-          {user.displayName}
-        </span>
-        <LogoutButton />
-      </header>
-      <main style={{ padding: '1rem' }}>{children}</main>
+    <div
+      style={{
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        fontFamily: 'system-ui, sans-serif',
+      }}
+    >
+      <AppHeader user={user} />
+      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </main>
     </div>
   );
 }
