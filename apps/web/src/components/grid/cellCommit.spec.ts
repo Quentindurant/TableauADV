@@ -120,6 +120,36 @@ describe('commitCellEdit', () => {
     );
     expect(d.reload).toHaveBeenCalledTimes(1);
   });
+
+  it('double panne : patchRow et reload echouent -> affiche toast supplementaire sans remonter d erreur', async () => {
+    const patchRow = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const reload = vi.fn(async () => {
+      throw new TypeError('Reload also failed');
+    });
+    const d = {
+      ...deps(patchRow),
+      reload,
+    };
+
+    // Ne doit pas lever d'exception
+    await commitCellEdit(row, 'client', 'NEO', d);
+
+    // Premier toast : le message d'erreur du patchRow
+    expect(d.showToast).toHaveBeenNthCalledWith(
+      1,
+      "Le serveur est injoignable : la modification n'a pas été enregistrée.",
+      'error',
+    );
+    // Deuxième toast : l'avertissement supplémentaire pour la double panne
+    expect(d.showToast).toHaveBeenNthCalledWith(
+      2,
+      'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
+      'error',
+    );
+    expect(d.showToast).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('commitHighlight', () => {
@@ -154,6 +184,36 @@ describe('commitHighlight', () => {
       expectedVersion: 3,
       formats: { num_chrono: null },
     });
+  });
+
+  it('double panne : patchRow et reload echouent -> affiche toast supplementaire sans remonter d erreur', async () => {
+    const patchRow = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    const reload = vi.fn(async () => {
+      throw new TypeError('Reload also failed');
+    });
+    const d = {
+      ...deps(patchRow),
+      reload,
+    };
+
+    // Ne doit pas lever d'exception
+    await commitHighlight(row, 'num_chrono', '#9BDEB4', d);
+
+    // Premier toast : le message d'erreur du patchRow
+    expect(d.showToast).toHaveBeenNthCalledWith(
+      1,
+      "Le serveur est injoignable : la modification n'a pas été enregistrée.",
+      'error',
+    );
+    // Deuxième toast : l'avertissement supplémentaire pour la double panne
+    expect(d.showToast).toHaveBeenNthCalledWith(
+      2,
+      'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
+      'error',
+    );
+    expect(d.showToast).toHaveBeenCalledTimes(2);
   });
 });
 

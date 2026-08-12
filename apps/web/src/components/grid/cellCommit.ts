@@ -57,7 +57,16 @@ export async function commitCellEdit(
     // 3. Échec : message français puis resynchronisation complète du mois.
     //    (Le rollback fin par clé arrive en Feature 7.)
     deps.showToast(messageForError(error), 'error');
-    await deps.reload();
+    try {
+      await deps.reload();
+    } catch {
+      // Panne doublée : le rechargement a échoué aussi.
+      // La valeur optimiste reste affichée → avertissement explicite.
+      deps.showToast(
+        'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
+        'error',
+      );
+    }
   }
 }
 
@@ -82,6 +91,15 @@ export async function commitHighlight(
     });
   } catch (error) {
     deps.showToast(messageForError(error), 'error');
-    await deps.reload();
+    try {
+      await deps.reload();
+    } catch {
+      // Panne doublée : le rechargement a échoué aussi.
+      // La valeur optimiste reste affichée → avertissement explicite.
+      deps.showToast(
+        'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
+        'error',
+      );
+    }
   }
 }
