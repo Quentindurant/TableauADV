@@ -97,7 +97,7 @@ describe('SelectCellEditor', () => {
       />,
     );
     await user.type(screen.getByTestId('select-filter'), '{ArrowDown}{Enter}');
-    expect(onValueChange).toHaveBeenCalledWith('NEW');
+    expect(onValueChange).toHaveBeenCalledWith('INSTALLATION');
     expect(stopEditing).toHaveBeenCalledWith();
   });
 

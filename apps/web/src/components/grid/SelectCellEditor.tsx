@@ -15,52 +15,62 @@ export function SelectCellEditor(
   { value, choices, onValueChange, stopEditing }: SelectCellEditorProps,
 ) {
   const [filter, setFilter] = useState('');
-  const [highlighted, setHighlighted] = useState(-1);
+  const [highlighted, setHighlighted] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const visible = useMemo(() => {
-    return choices.filter((c) => !c.archived && c.label.toUpperCase().includes(filter.toUpperCase()));
+    const needle = filter.trim().toLocaleUpperCase('fr-FR');
+    return choices
+      .filter((choice) => !choice.archived)
+      .filter((choice) =>
+        needle === '' ? true : choice.label.toLocaleUpperCase('fr-FR').includes(needle),
+      );
   }, [filter, choices]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
-  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+  useEffect(() => {
+    setHighlighted(0);
+  }, [filter]);
+
+  function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      event.stopPropagation();
+      setHighlighted((current) => Math.min(current + 1, visible.length - 1));
+      return;
+    }
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      event.stopPropagation();
+      setHighlighted((current) => Math.max(current - 1, 0));
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      event.stopPropagation();
+      const choice = visible[highlighted];
+      if (choice) pick(choice.label);
+      return;
+    }
     if (event.key === 'Escape') {
       event.preventDefault();
+      event.stopPropagation();
       stopEditing(true);
-    } else if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setHighlighted((prev) => (prev < visible.length - 1 ? prev + 1 : prev));
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setHighlighted((prev) => (prev > -1 ? prev - 1 : prev));
-    } else if (event.key === 'Enter') {
-      event.preventDefault();
-      if (highlighted >= 0 && visible[highlighted]) {
-        onValueChange(visible[highlighted].label);
-        stopEditing();
-      }
     }
-  };
+  }
 
-  const handleClear = () => {
-    onValueChange(null);
+  function pick(next: CellValue): void {
+    onValueChange(next);
     stopEditing();
-  };
-
-  const handleOptionClick = (label: string) => {
-    onValueChange(label);
-    stopEditing();
-  };
+  }
 
   return (
     <div
       data-testid="select-editor"
       style={{
-        position: 'absolute',
-        zIndex: 1000,
         background: '#FFFFFF',
         border: '1px solid #D8DEE4',
         borderRadius: 4,
@@ -75,10 +85,7 @@ export function SelectCellEditor(
         aria-label="Filtrer les choix"
         placeholder="Filtrer…"
         value={filter}
-        onChange={(event) => {
-          setFilter(event.target.value);
-          setHighlighted(0);
-        }}
+        onChange={(event) => setFilter(event.target.value)}
         onKeyDown={onKeyDown}
         style={{
           width: '100%',
@@ -86,51 +93,65 @@ export function SelectCellEditor(
           padding: '4px 6px',
           border: '1px solid #D8DEE4',
           borderRadius: 3,
-          fontFamily: 'inherit',
-          fontSize: 'inherit',
+          font: 'inherit',
         }}
       />
-      <div
+      <ul
         style={{
-          marginTop: 4,
-          maxHeight: 300,
+          listStyle: 'none',
+          margin: '4px 0 0',
+          padding: 0,
+          maxHeight: 240,
           overflowY: 'auto',
         }}
       >
-        {visible.map((choice, idx) => (
-          <button
-            key={choice.id}
-            data-testid={`select-option-${choice.label}`}
-            onClick={() => handleOptionClick(choice.label)}
-            onMouseEnter={() => setHighlighted(idx)}
-            type="button"
-            style={{
-              marginTop: 4,
-              width: '100%',
-              border: 'none',
-              backgroundColor: idx === highlighted && !choice.bgColor ? '#F0F0F0' : (choice.bgColor ?? 'transparent'),
-              cursor: 'pointer',
-              textAlign: 'left',
-              padding: '3px 6px',
-              borderRadius: 2,
-              color: choice.textColor ?? 'inherit',
-              fontWeight: choice.bold ? 700 : 400,
-              transition: 'background-color 0.1s ease',
-            }}
-          >
-            {choice.label}
-          </button>
+        {visible.map((choice, index) => (
+          <li key={choice.id}>
+            <button
+              type="button"
+              data-testid={`select-option-${choice.label}`}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => pick(choice.label)}
+              onMouseEnter={() => setHighlighted(index)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                border: index === highlighted ? '2px solid #0066CC' : 'none',
+                cursor: 'pointer',
+                padding: '3px 4px',
+                background: index === highlighted ? '#EDF1F5' : 'transparent',
+              }}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  padding: '1px 6px',
+                  borderRadius: 3,
+                  backgroundColor: choice.bgColor ?? undefined,
+                  color: choice.textColor ?? undefined,
+                  fontWeight: choice.bold ? 700 : 400,
+                }}
+              >
+                {choice.label}
+              </span>
+            </button>
+          </li>
         ))}
-      </div>
+        {visible.length === 0 ? (
+          <li style={{ padding: '4px 6px', color: '#6B7785' }}>Aucun choix</li>
+        ) : null}
+      </ul>
       <button
-        data-testid="select-clear"
         type="button"
-        onClick={handleClear}
+        data-testid="select-clear"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => pick(null)}
         style={{
           marginTop: 4,
           width: '100%',
           border: 'none',
-          backgroundColor: 'transparent',
+          background: 'transparent',
           cursor: 'pointer',
           textAlign: 'left',
           padding: '3px 6px',
