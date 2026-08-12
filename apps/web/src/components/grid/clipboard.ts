@@ -1,4 +1,5 @@
-import type { CellValue, RowDTO } from '@suivi/shared';
+import type { CellValue, ColumnDTO, RowDTO } from '@suivi/shared';
+import { normalizeCellValue } from './columnDefs';
 import { commitCellEdit, type CommitDeps } from './cellCommit';
 
 /**
@@ -21,13 +22,23 @@ export function cellText(value: CellValue | undefined): string {
 export async function copyFocusedCell(
   api: GridClipboardApi,
   writeText: (text: string) => Promise<void>,
+  deps: CommitDeps,
 ): Promise<boolean> {
   const focused = api.getFocusedCell();
   if (!focused) return false;
   const rowData = api.getDisplayedRowAtIndex(focused.rowIndex)?.data;
   if (!rowData) return false;
-  await writeText(cellText(rowData.data[focused.column.getColId()]));
-  return true;
+  try {
+    await writeText(cellText(rowData.data[focused.column.getColId()]));
+    return true;
+  } catch (error) {
+    const message =
+      error instanceof Error && error.name === 'NotAllowedError'
+        ? 'Accès au presse-papier refusé par le navigateur.'
+        : 'Le presse-papier n\'est pas disponible dans ce navigateur.';
+    deps.showToast(message, 'error');
+    return false;
+  }
 }
 
 /**
@@ -35,9 +46,11 @@ export async function copyFocusedCell(
  * est la sélection verticale suivie MANUELLEMENT par `DataGrid` (la sélection de
  * plage native est Enterprise) ; vide, seule la cellule focalisée est écrite.
  * L'écriture passe par `commitCellEdit` (optimiste + 409/404) ligne par ligne.
+ * La valeur est normalisée selon le type de la colonne.
  */
 export async function pasteFocusedColumn(
   api: GridClipboardApi,
+  columns: ColumnDTO[],
   readText: () => Promise<string>,
   selectedRowIndexes: readonly number[],
   deps: CommitDeps,
@@ -45,8 +58,20 @@ export async function pasteFocusedColumn(
   const focused = api.getFocusedCell();
   if (!focused) return;
   const colKey = focused.column.getColId();
-  const text = await readText();
-  const value: CellValue = text === '' ? null : text;
+  const column = columns.find((c) => c.key === colKey);
+  if (!column) return;
+  let text: string;
+  try {
+    text = await readText();
+  } catch (error) {
+    const message =
+      error instanceof Error && error.name === 'NotAllowedError'
+        ? 'Accès au presse-papier refusé par le navigateur.'
+        : 'Le presse-papier n\'est pas disponible dans ce navigateur.';
+    deps.showToast(message, 'error');
+    return;
+  }
+  const value: CellValue = normalizeCellValue(column.type, text);
   const indexes = selectedRowIndexes.length > 0 ? [...selectedRowIndexes] : [focused.rowIndex];
   for (const index of indexes) {
     const rowData = api.getDisplayedRowAtIndex(index)?.data;

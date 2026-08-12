@@ -122,15 +122,15 @@ export function DataGrid({ reload }: DataGridProps) {
       const key = keyboard.key.toLowerCase();
       if (key === 'c') {
         keyboard.preventDefault();
-        void copyFocusedCell(event.api, (text) => navigator.clipboard.writeText(text));
+        void copyFocusedCell(event.api, (text) => navigator.clipboard.writeText(text), deps);
       } else if (key === 'v') {
         keyboard.preventDefault();
         const colKey = event.api.getFocusedCell()?.column.getColId() ?? '';
         const indexes = selectionRef.current.colKey === colKey ? selectionRef.current.indexes : [];
-        void pasteFocusedColumn(event.api, () => navigator.clipboard.readText(), indexes, deps);
+        void pasteFocusedColumn(event.api, columns, () => navigator.clipboard.readText(), indexes, deps);
       }
     },
-    [deps],
+    [columns, deps],
   );
 
   // --- Toast : disparition automatique après 6 s ---------------------------
