@@ -1,0 +1,373 @@
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import {
+  AllCommunityModule,
+  ModuleRegistry,
+  themeQuartz,
+  type CellClickedEvent,
+  type CellContextMenuEvent,
+  type CellKeyDownEvent,
+  type CellValueChangedEvent,
+  type ColumnMovedEvent,
+  type ColumnResizedEvent,
+  type GetRowIdParams,
+  type GridApi,
+  type GridReadyEvent,
+  type RowDragEndEvent,
+} from 'ag-grid-community';
+import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
+import * as api from '../../lib/api';
+import { useAppStore } from '../../lib/store';
+import { buildColumnDefs } from './columnDefs';
+import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
+import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
+import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
+import { RowContextMenu } from './RowContextMenu';
+import { RowHistoryPanel } from './RowHistoryPanel';
+
+// AG Grid v33+ : les modules Community doivent être enregistrés explicitement.
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+/** Thème quartz personnalisé, clair, proche du rendu du classeur d'origine. */
+export const suiviTheme = themeQuartz.withParams({
+  accentColor: '#2772A4',
+  backgroundColor: '#FFFFFF',
+  foregroundColor: '#1B1B1B',
+  borderColor: '#D8DEE4',
+  headerBackgroundColor: '#EDF1F5',
+  headerTextColor: '#1B1B1B',
+  headerFontWeight: 700,
+  oddRowBackgroundColor: '#FBFCFD',
+  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  fontSize: 13,
+  rowHeight: 28,
+  headerHeight: 32,
+  cellHorizontalPadding: 6,
+});
+
+interface MenuState {
+  row: RowDTO;
+  colKey: string;
+  x: number;
+  y: number;
+}
+
+export interface DataGridProps {
+  /** Rechargement complet de la vue courante (mois ou archives). */
+  reload: () => Promise<void>;
+}
+
+export function DataGrid({ reload }: DataGridProps) {
+  const columns = useAppStore((state) => state.columns);
+  const choicesByColumnKey = useAppStore((state) => state.choicesByColumnKey);
+  const rows = useAppStore((state) => state.rows);
+  const months = useAppStore((state) => state.months);
+  const toast = useAppStore((state) => state.toast);
+
+  const [menu, setMenu] = useState<MenuState | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [events, setEvents] = useState<RowEventDTO[]>([]);
+
+  const columnDefs = useMemo(
+    () => buildColumnDefs(columns, choicesByColumnKey),
+    [columns, choicesByColumnKey],
+  );
+
+  const deps = useMemo(
+    () => ({
+      patchRow: api.patchRow,
+      applyRowPatch: useAppStore.getState().applyRowPatch,
+      reload,
+      showToast: useAppStore.getState().showToast,
+    }),
+    [reload],
+  );
+
+  const gridApiRef = useRef<GridApi<RowDTO> | null>(null);
+  // Sélection verticale suivie à la main (la sélection de plage est Enterprise) :
+  // clic simple = 1 cellule ; Maj+clic dans la MÊME colonne = étend depuis l'ancre.
+  const selectionRef = useRef<{ colKey: string; anchor: number; indexes: number[] }>({
+    colKey: '',
+    anchor: -1,
+    indexes: [],
+  });
+
+  const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
+    gridApiRef.current = event.api;
+  }, []);
+
+  const onCellClicked = useCallback((event: CellClickedEvent<RowDTO>) => {
+    const colKey = event.column.getColId();
+    const rowIndex = event.rowIndex ?? 0;
+    const mouse = event.event as MouseEvent | null;
+    const current = selectionRef.current;
+    if (mouse?.shiftKey && current.colKey === colKey && current.anchor >= 0) {
+      const lo = Math.min(current.anchor, rowIndex);
+      const hi = Math.max(current.anchor, rowIndex);
+      const indexes: number[] = [];
+      for (let i = lo; i <= hi; i += 1) indexes.push(i);
+      selectionRef.current = { colKey, anchor: current.anchor, indexes };
+    } else {
+      selectionRef.current = { colKey, anchor: rowIndex, indexes: [rowIndex] };
+    }
+  }, []);
+
+  const onCellKeyDown = useCallback(
+    (event: CellKeyDownEvent<RowDTO>) => {
+      const keyboard = event.event as KeyboardEvent | null;
+      if (!keyboard || !(keyboard.ctrlKey || keyboard.metaKey)) return;
+      const key = keyboard.key.toLowerCase();
+      if (key === 'c') {
+        keyboard.preventDefault();
+        void copyFocusedCell(event.api, (text) => navigator.clipboard.writeText(text), deps);
+      } else if (key === 'v') {
+        keyboard.preventDefault();
+        const colKey = event.api.getFocusedCell()?.column.getColId() ?? '';
+        const indexes = selectionRef.current.colKey === colKey ? selectionRef.current.indexes : [];
+        void pasteFocusedColumn(event.api, columns, () => navigator.clipboard.readText(), indexes, deps);
+      }
+    },
+    [columns, deps],
+  );
+
+  // --- Toast : disparition automatique après 6 s ---------------------------
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => useAppStore.getState().hideToast(), 6000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  // --- Persistance de la largeur et de l'ordre des colonnes ----------------
+  // Initialisation paresseuse : `useRef(<expr>).current` évaluerait <expr> à
+  // CHAQUE rendu (l'objet/la closure construit(e) serait aussitôt jetée,
+  // seul `.current` du premier rendu étant conservé) ; on n'initialise donc
+  // qu'au premier accès, via `useRef<T | null>(null)` + garde.
+
+  // Dépendances partagées par les deux persisteurs : résolues à l'appel (via
+  // `getState()`) pour ne jamais fermer sur un état de store obsolète.
+  const layoutDepsRef = useRef<PersistColumnFieldDeps | null>(null);
+  if (!layoutDepsRef.current) {
+    layoutDepsRef.current = {
+      getColumns: () => useAppStore.getState().columns,
+      patchColumn: api.patchColumn,
+      setColumns: (next) => useAppStore.getState().setColumns(next),
+      onError: (error) => useAppStore.getState().showToast(messageForError(error), 'error'),
+    };
+  }
+  const layoutDeps = layoutDepsRef.current;
+
+  // Coalescence PAR COLONNE (`colKey`) : redimensionner/déplacer la colonne A
+  // puis la colonne B dans la même fenêtre de 400 ms produit un PATCH par
+  // colonne — un debounce global ferait perdre silencieusement celui de A.
+  type ColumnFieldDebouncer = ReturnType<typeof debouncePerKey<[string, number]>>;
+
+  const persistWidthRef = useRef<ColumnFieldDebouncer | null>(null);
+  if (!persistWidthRef.current) {
+    persistWidthRef.current = debouncePerKey(
+      (colKey: string, width: number) => {
+        void persistColumnField(colKey, { width }, layoutDeps);
+      },
+      400,
+      (colKey: string) => colKey,
+    );
+  }
+  const persistWidth = persistWidthRef.current;
+
+  const persistPositionRef = useRef<ColumnFieldDebouncer | null>(null);
+  if (!persistPositionRef.current) {
+    persistPositionRef.current = debouncePerKey(
+      (colKey: string, position: number) => {
+        void persistColumnField(colKey, { position }, layoutDeps);
+      },
+      400,
+      (colKey: string) => colKey,
+    );
+  }
+  const persistPosition = persistPositionRef.current;
+
+  useEffect(() => () => {
+    persistWidth.cancelAll();
+    persistPosition.cancelAll();
+  }, [persistWidth, persistPosition]);
+
+  const onColumnResized = useCallback(
+    (event: ColumnResizedEvent<RowDTO>) => {
+      if (!event.finished || !event.column) return;
+      persistWidth(event.column.getColId(), Math.round(event.column.getActualWidth()));
+    },
+    [persistWidth],
+  );
+
+  const onColumnMoved = useCallback(
+    (event: ColumnMovedEvent<RowDTO>) => {
+      if (!event.finished || !event.column || event.toIndex === undefined) return;
+      persistPosition(event.column.getColId(), event.toIndex);
+    },
+    [persistPosition],
+  );
+
+  // --- Édition d'une cellule ------------------------------------------------
+  const onCellValueChanged = useCallback(
+    (event: CellValueChangedEvent<RowDTO, CellValue>) => {
+      const colKey = event.column.getColId();
+      const row = useAppStore.getState().rows.find((item) => item.id === event.data.id);
+      if (!row || !colKey) return;
+      void commitCellEdit(row, colKey, event.data.data[colKey] ?? null, deps);
+    },
+    [deps],
+  );
+
+  // --- Réordonnancement par glisser-déposer --------------------------------
+  const onRowDragEnd = useCallback(
+    (event: RowDragEndEvent<RowDTO>) => {
+      const row = event.node.data;
+      if (!row) return;
+      void api
+        .moveRow(row.id, { position: event.overIndex })
+        .then(() => reload())
+        .catch((error: unknown) => {
+          useAppStore.getState().showToast(messageForError(error), 'error');
+          return reload();
+        });
+    },
+    [reload],
+  );
+
+  // --- Menu contextuel ------------------------------------------------------
+  const onCellContextMenu = useCallback((event: CellContextMenuEvent<RowDTO>) => {
+    const mouse = event.event as MouseEvent | null;
+    if (!event.data || !mouse) return;
+    setMenu({
+      row: event.data,
+      colKey: event.column.getColId(),
+      x: mouse.clientX,
+      y: mouse.clientY,
+    });
+  }, []);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  const runAction = useCallback(
+    async (action: () => Promise<unknown>) => {
+      try {
+        await action();
+        await reload();
+      } catch (error: unknown) {
+        useAppStore.getState().showToast(messageForError(error), 'error');
+        await reload();
+      }
+    },
+    [reload],
+  );
+
+  async function openHistory(row: RowDTO): Promise<void> {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    try {
+      setEvents(await api.getRowEvents(row.id));
+    } catch (error: unknown) {
+      useAppStore.getState().showToast(messageForError(error), 'error');
+      setEvents([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  return (
+    <div
+      data-testid="data-grid"
+      style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}
+      onClick={() => setMenu(null)}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <AgGridReact<RowDTO>
+          theme={suiviTheme}
+          rowData={rows}
+          columnDefs={columnDefs}
+          getRowId={(params: GetRowIdParams<RowDTO>) => params.data.id}
+          defaultColDef={{ resizable: true, editable: true, sortable: false }}
+          singleClickEdit={false}
+          stopEditingWhenCellsLoseFocus
+          rowDragManaged
+          preventDefaultOnContextMenu
+          animateRows={false}
+          enableCellTextSelection={true}
+          ensureDomOrder={true}
+          onGridReady={onGridReady}
+          onCellValueChanged={onCellValueChanged}
+          onColumnResized={onColumnResized}
+          onColumnMoved={onColumnMoved}
+          onRowDragEnd={onRowDragEnd}
+          onCellClicked={onCellClicked}
+          onCellKeyDown={onCellKeyDown}
+          onCellContextMenu={onCellContextMenu}
+        />
+      </div>
+
+      {menu ? (
+        <RowContextMenu
+          row={menu.row}
+          colKey={menu.colKey}
+          months={months}
+          x={menu.x}
+          y={menu.y}
+          onClose={closeMenu}
+          onInsertAbove={() =>
+            void runAction(() =>
+              api.createRow({ month: menu.row.month, position: menu.row.position }),
+            )
+          }
+          onInsertBelow={() =>
+            void runAction(() =>
+              api.createRow({ month: menu.row.month, position: menu.row.position + 1 }),
+            )
+          }
+          onMoveToMonth={(month) =>
+            void runAction(() => api.moveRow(menu.row.id, { month }))
+          }
+          onToggleArchive={() =>
+            void runAction(() => api.archiveRow(menu.row.id, !menu.row.archived))
+          }
+          onDelete={() => void runAction(() => api.deleteRow(menu.row.id))}
+          onShowHistory={() => void openHistory(menu.row)}
+          onHighlight={(color) =>
+            void commitHighlight(menu.row, menu.colKey, color, deps)
+          }
+        />
+      ) : null}
+
+      {historyOpen ? (
+        <RowHistoryPanel
+          events={events}
+          loading={historyLoading}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
+
+      {toast ? (
+        <div
+          data-testid="toast"
+          role="status"
+          style={{
+            position: 'fixed',
+            right: 16,
+            bottom: 16,
+            zIndex: 1200,
+            maxWidth: 420,
+            padding: '10px 14px',
+            borderRadius: 4,
+            color: '#FFFFFF',
+            background: toast.kind === 'error' ? '#C0392B' : '#2772A4',
+            boxShadow: '0 6px 18px rgba(0,0,0,0.2)',
+            fontSize: 13,
+          }}
+        >
+          {toast.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
