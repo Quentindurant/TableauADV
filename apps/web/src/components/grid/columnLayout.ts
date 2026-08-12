@@ -42,16 +42,19 @@ export function debounce<A extends unknown[]>(
  * un appel en attente sur la clé A. `cancelAll()` annule toutes les entrées
  * en attente, quelle que soit la clé — à utiliser dans le cleanup d'un
  * `useEffect` de démontage.
+ *
+ * Le `keyOf` reçoit le premier argument (la clé) et retourne un identifiant
+ * pour coalescer les appels.
  */
-export function debouncePerKey<A extends unknown[]>(
+export function debouncePerKey<A extends [string, ...unknown[]]>(
   fn: (...args: A) => void,
   delayMs: number,
-  keyOf: (...args: A) => string,
+  keyOf: (key: A[0]) => string,
 ): ((...args: A) => void) & { cancelAll: () => void } {
   const debounced = new Map<string, ReturnType<typeof debounce<A>>>();
 
   const perKey = (...args: A): void => {
-    const key = keyOf(...args);
+    const key = keyOf(args[0]);
     let entry = debounced.get(key);
     if (!entry) {
       entry = debounce(fn, delayMs);

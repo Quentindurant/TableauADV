@@ -36,12 +36,14 @@ function fakeDeps() {
 
 function fakeColumn(key: string, type: 'TEXT' | 'NUMBER' = 'TEXT'): ColumnDTO {
   return {
+    id: `col-${key}`,
     key,
     type,
     label: key,
     width: 100,
     visible: true,
     position: 0,
+    choices: [],
   };
 }
 
