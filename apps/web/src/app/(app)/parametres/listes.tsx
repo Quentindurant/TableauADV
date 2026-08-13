@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState, type CSSProperties, type DragEvent, t
 
 import { apiFetch } from '../../../lib/api';
 import { deplacerElement, trierParPosition } from './colonnes';
-import { messageErreurApi } from './messages';
+import { aCodeErreur, messageErreurApi } from './messages';
 
 export const FOND_DEFAUT = '#ffffff';
 export const TEXTE_DEFAUT = '#000000';
@@ -32,6 +32,11 @@ export function stylePastille(
   };
 }
 
+interface EtatSuppressionChoix {
+  choix: ChoiceDTO;
+  messageBlocage: string | null;
+}
+
 export default function ListesTab() {
   const [colonnes, setColonnes] = useState<ColumnDTO[]>([]);
   const [colonneId, setColonneId] = useState('');
@@ -46,6 +51,7 @@ export default function ListesTab() {
   const [editionId, setEditionId] = useState<string | null>(null);
   const [editionLabel, setEditionLabel] = useState('');
   const [indexGlisse, setIndexGlisse] = useState<number | null>(null);
+  const [suppression, setSuppression] = useState<EtatSuppressionChoix | null>(null);
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -197,6 +203,40 @@ export default function ListesTab() {
     await enregistrerChoix(reordonnes[index].id, { position: index });
   };
 
+  const confirmerSuppression = async (): Promise<void> => {
+    if (suppression === null) {
+      return;
+    }
+    const cible = suppression.choix;
+    try {
+      await apiFetch<void>(`/choices/${cible.id}`, { method: 'DELETE' });
+      setColonnes((precedentes) =>
+        precedentes.map((colonne) =>
+          colonne.id === cible.columnId
+            ? { ...colonne, choices: colonne.choices.filter((element) => element.id !== cible.id) }
+            : colonne,
+        ),
+      );
+      setSuppression(null);
+      setErreur(null);
+    } catch (err) {
+      if (aCodeErreur(err, 'CHOICE_IN_USE')) {
+        setSuppression({ choix: cible, messageBlocage: messageErreurApi(err) });
+        return;
+      }
+      setErreur(messageErreurApi(err));
+      setSuppression(null);
+    }
+  };
+
+  const archiverAuLieuDeSupprimer = async (): Promise<void> => {
+    if (suppression === null) {
+      return;
+    }
+    await enregistrerChoix(suppression.choix.id, { archived: true });
+    setSuppression(null);
+  };
+
   return (
     <section aria-label="Listes et couleurs">
       {erreur !== null && <p role="alert">{erreur}</p>}
@@ -318,6 +358,13 @@ export default function ListesTab() {
             >
               {element.archived ? 'Désarchiver' : 'Archiver'}
             </button>
+            <button
+              type="button"
+              aria-label={`Supprimer ${element.label}`}
+              onClick={() => setSuppression({ choix: element, messageBlocage: null })}
+            >
+              Supprimer
+            </button>
             {element.archived && <em> (archivée)</em>}
           </li>
         ))}
@@ -364,6 +411,39 @@ export default function ListesTab() {
         </span>
         <button type="submit">Ajouter la valeur</button>
       </form>
+
+      {suppression !== null && (
+        <div role="dialog" aria-modal="true" aria-label="Confirmer la suppression de la valeur">
+          <p>Supprimer la valeur « {suppression.choix.label} » ?</p>
+          {suppression.messageBlocage === null ? (
+            <p>Cette action est définitive et ne peut pas être annulée.</p>
+          ) : (
+            <p role="alert">{suppression.messageBlocage}</p>
+          )}
+          <button type="button" onClick={() => setSuppression(null)}>
+            Annuler
+          </button>
+          {suppression.messageBlocage === null ? (
+            <button
+              type="button"
+              onClick={() => {
+                void confirmerSuppression();
+              }}
+            >
+              Supprimer
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                void archiverAuLieuDeSupprimer();
+              }}
+            >
+              Archiver à la place
+            </button>
+          )}
+        </div>
+      )}
     </section>
   );
 }

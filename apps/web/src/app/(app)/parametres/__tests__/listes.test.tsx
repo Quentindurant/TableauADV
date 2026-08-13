@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ChoiceDTO, ColumnDTO } from '@suivi/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -321,5 +321,68 @@ describe('ListesTab — ajout, renommage, archivage, ordre', () => {
         body: JSON.stringify({ position: 0 }),
       }),
     );
+  });
+});
+
+describe('ListesTab — suppression', () => {
+  it('supprime une valeur inutilisée après confirmation', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock.mockResolvedValueOnce([COLONNE_STATUT]).mockResolvedValueOnce(undefined);
+
+    render(<ListesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer NEW' }));
+
+    const dialogue = screen.getByRole('dialog');
+    expect(dialogue).toHaveTextContent('Supprimer la valeur « NEW » ?');
+    await utilisateur.click(within(dialogue).getByRole('button', { name: 'Supprimer' }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch1', { method: 'DELETE' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('pastille-ch1')).not.toBeInTheDocument();
+  });
+
+  it('sur 409 CHOICE_IN_USE, garde le dialogue ouvert et conseille l’archivage', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockRejectedValueOnce({
+        status: 409,
+        code: 'CHOICE_IN_USE',
+        message: 'La valeur est utilisée',
+      });
+
+    render(<ListesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer NEW' }));
+    await utilisateur.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer' }));
+
+    const dialogue = await screen.findByRole('dialog');
+    expect(dialogue).toHaveTextContent('utilisée par des lignes existantes');
+    expect(dialogue).toHaveTextContent('archivez-la plutôt que de la supprimer');
+    expect(screen.getByTestId('pastille-ch1')).toBeInTheDocument();
+  });
+
+  it('propose « Archiver à la place » et envoie PATCH { archived: true }', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockRejectedValueOnce({ status: 409, code: 'CHOICE_IN_USE', message: 'utilisée' })
+      .mockResolvedValueOnce({ ...NEW, archived: true });
+
+    render(<ListesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer NEW' }));
+    await utilisateur.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer' }));
+    await utilisateur.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Archiver à la place' }),
+    );
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch1', {
+        method: 'PATCH',
+        body: JSON.stringify({ archived: true }),
+      }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
