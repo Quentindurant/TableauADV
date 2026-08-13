@@ -110,6 +110,43 @@ check_vhost() {
     "vhost : commande a2enmod rappelée en commentaire"
 }
 
+check_backup() {
+  local s="deploy/backup.sh"
+  local d="deploy/backup.md"
+  expect_file "$s"
+  expect_exec "$s"
+  expect_grep "$s" '^#!/usr/bin/env bash' "backup.sh : shebang bash"
+  expect_grep "$s" '^set -euo pipefail' "backup.sh : set -euo pipefail"
+  expect_grep "$s" 'BACKUP_DIR:-/var/backups/suivi-commandes' \
+    "backup.sh : dossier /var/backups/suivi-commandes par défaut"
+  expect_grep "$s" 'date \+%F' "backup.sh : nom de fichier daté AAAA-MM-JJ"
+  expect_grep "$s" 'pg_dump' "backup.sh : utilise pg_dump"
+  expect_grep "$s" '\-\-format=custom' "backup.sh : format custom (-Fc) restaurable sélectivement"
+  expect_grep "$s" 'find .*-mtime .*-delete' "backup.sh : rotation par find -mtime -delete"
+  expect_grep "$s" 'RETENTION_DAYS:-30' "backup.sh : rétention 30 jours par défaut"
+
+  if bash -n "$ROOT/$s" 2>/dev/null; then
+    ok "backup.sh : syntaxe bash valide (bash -n)"
+  else
+    fail "backup.sh : erreur de syntaxe bash"
+  fi
+
+  if command -v shellcheck >/dev/null 2>&1; then
+    if shellcheck "$ROOT/deploy/backup.sh" "$ROOT/deploy/check-deploy.sh"; then
+      ok "shellcheck : aucun avertissement sur backup.sh et check-deploy.sh"
+    else
+      fail "shellcheck : avertissements à corriger (voir ci-dessus)"
+    fi
+  else
+    ok "shellcheck absent de la machine — relecture manuelle requise (voir Étape 6)"
+  fi
+
+  expect_file "$d"
+  expect_grep "$d" 'pg_restore' "backup.md : procédure de restauration documentée"
+  expect_grep "$d" '0 3 \* \* \*' "backup.md : ligne crontab à 3 h 00"
+  expect_grep "$d" '/var/backups/suivi-commandes' "backup.md : emplacement des sauvegardes"
+}
+
 run_check() {
   local name="$1"
   printf '\n--- %s ---\n' "$name"
