@@ -360,3 +360,40 @@ async function importSheet(
     anomalies,
   };
 }
+
+// ---------------------------------------------------------------- rapport
+
+/** Rapport texte affiché en fin d'import par le script CLI. */
+export function formatReport(report: ImportReport): string {
+  const lignes: string[] = [];
+  lignes.push(`Import terminé — fichier : ${report.file}`);
+  lignes.push(
+    `Colonnes créées : ${report.columns} — choix créés : ${report.choices} — lignes créées : ${report.rows}`,
+  );
+  lignes.push('');
+  lignes.push('Feuille                     | Mois     | Importées | Ignorées | Anomalies');
+  lignes.push('----------------------------+----------+-----------+----------+----------');
+
+  for (const feuille of report.sheets) {
+    const nom = feuille.sheet.padEnd(27).slice(0, 27);
+    const mois = (feuille.archived ? 'archives' : (feuille.month ?? '-')).padEnd(8);
+    const importees = String(feuille.imported).padStart(9);
+    const ignorees = String(feuille.ignored).padStart(8);
+    const anomalies = String(feuille.anomalies.length).padStart(9);
+    lignes.push(`${nom} | ${mois} | ${importees} | ${ignorees} | ${anomalies}`);
+  }
+
+  const avecAnomalies = report.sheets.filter((feuille) => feuille.anomalies.length > 0);
+  if (avecAnomalies.length > 0) {
+    lignes.push('');
+    lignes.push('Anomalies détaillées :');
+    for (const feuille of avecAnomalies) {
+      lignes.push(`  [${feuille.sheet}]`);
+      for (const anomalie of feuille.anomalies) {
+        lignes.push(`    - ${anomalie}`);
+      }
+    }
+  }
+
+  return lignes.join('\n');
+}
