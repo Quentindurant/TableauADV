@@ -31,6 +31,27 @@ function handleSyncError(error: unknown, deps: SyncDeps): void {
 }
 
 /**
+ * Charge colonnes + lignes de la vue donnée. Renvoie `null` si la vue
+ * affichée a changé pendant l'attente réseau (garde anti-obsolescence) :
+ * ces données ne correspondent plus à rien d'affiché, les appliquer
+ * écraserait la vue désormais courante avec celles d'une autre vue.
+ */
+async function loadColumnsAndRows(
+  view: GridView,
+  month: string,
+): Promise<{ columns: ColumnDTO[]; rows: RowDTO[] } | null> {
+  const [columns, rows] = await Promise.all([
+    apiFetch<ColumnDTO[]>('/columns'),
+    apiFetch<RowDTO[]>(rowsQueryForView(view, month)),
+  ]);
+  const current = useAppStore.getState();
+  if (current.view !== view || current.monthCourant !== month) {
+    return null;
+  }
+  return { columns, rows };
+}
+
+/**
  * Resynchronisation complète après une reconnexion du socket : la room est
  * rejointe et l'état affiché est reconstruit depuis le serveur (les
  * événements survenus pendant la coupure sont définitivement perdus).
@@ -44,20 +65,12 @@ export async function resyncView(
   // Les focus/verrous mémorisés datent d'avant la coupure : ils sont faux.
   useAppStore.getState().clearCoedition();
   try {
-    const [columns, rows] = await Promise.all([
-      apiFetch<ColumnDTO[]>('/columns'),
-      apiFetch<RowDTO[]>(rowsQueryForView(view, month)),
-    ]);
-    // Garde anti-obsolescence : si la vue affichée a changé pendant l'attente
-    // réseau (nouveau mois sélectionné, bascule vers/depuis les archives...),
-    // ces données ne correspondent plus à rien d'affiché — les appliquer
-    // écraserait la vue désormais courante avec celles d'une autre vue.
-    const current = useAppStore.getState();
-    if (current.view !== view || current.monthCourant !== month) {
+    const data = await loadColumnsAndRows(view, month);
+    if (!data) {
       return;
     }
-    useAppStore.getState().setColumns(columns);
-    useAppStore.getState().setRows(rows);
+    useAppStore.getState().setColumns(data.columns);
+    useAppStore.getState().setRows(data.rows);
   } catch (error) {
     handleSyncError(error, deps);
   }
@@ -73,8 +86,24 @@ export async function refreshConfig(
       useAppStore.getState().setUsers(await apiFetch<UserDTO[]>('/users'));
       return;
     }
-    // Les choix de listes sont imbriqués dans ColumnDTO.choices : un seul
-    // appel couvre les scopes « columns » et « choices ».
+    if (scope === 'choices') {
+      // Un renommage de valeur de liste propage le nouveau libellé sur les
+      // lignes existantes côté serveur (UPDATE en masse, cf. choices.service).
+      // Sans rechargement des lignes de la vue courante, les cellules
+      // affichées chez les autres clients gardent l'ancien libellé et
+      // perdent leur pastille de couleur (il ne correspond plus à aucun
+      // choix) jusqu'à un rechargement manuel.
+      const { view, monthCourant } = useAppStore.getState();
+      const data = await loadColumnsAndRows(view, monthCourant);
+      if (!data) {
+        return;
+      }
+      useAppStore.getState().setColumns(data.columns);
+      useAppStore.getState().setRows(data.rows);
+      return;
+    }
+    // Les colonnes elles-mêmes sont imbriquées dans ColumnDTO.choices : un
+    // seul appel couvre le scope « columns ».
     useAppStore.getState().setColumns(await apiFetch<ColumnDTO[]>('/columns'));
   } catch (error) {
     handleSyncError(error, deps);
