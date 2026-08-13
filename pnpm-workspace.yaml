@@ -1,3 +1,18 @@
 packages:
   - "apps/*"
   - "packages/*"
+
+# pnpm 10 bloque par défaut les scripts postinstall des dépendances (voir
+# https://pnpm.io/settings#onlybuiltdependencies) : sans cette liste,
+# `pnpm install` affiche « Ignored build scripts » pour @prisma/client,
+# @prisma/engines, argon2, esbuild, prisma et sharp, le client Prisma n'est
+# jamais généré, et `pnpm --filter @suivi/api build` échoue (TS2339 sur
+# PrismaService). À approuver explicitement ici plutôt qu'avec
+# `pnpm approve-builds` (interactif, non reproductible en CI/déploiement).
+onlyBuiltDependencies:
+  - "@prisma/client"
+  - "@prisma/engines"
+  - "prisma"
+  - "argon2"
+  - "esbuild"
+  - "sharp"
