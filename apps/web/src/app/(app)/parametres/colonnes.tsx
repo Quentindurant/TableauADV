@@ -1,7 +1,7 @@
 'use client';
 
 import type { ColumnDTO, ColumnType } from '@suivi/shared';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type DragEvent, type FormEvent } from 'react';
 
 import { apiFetch } from '../../../lib/api';
 import { messageErreurApi } from './messages';
@@ -20,6 +20,16 @@ export function trierParPosition<T extends { position: number }>(items: readonly
   return [...items].sort((a, b) => a.position - b.position);
 }
 
+export function deplacerElement<T>(items: readonly T[], depuis: number, vers: number): T[] {
+  const copie = [...items];
+  if (depuis < 0 || depuis >= copie.length || vers < 0 || vers >= copie.length) {
+    return copie;
+  }
+  const [element] = copie.splice(depuis, 1);
+  copie.splice(vers, 0, element);
+  return copie;
+}
+
 export default function ColonnesTab() {
   const [colonnes, setColonnes] = useState<ColumnDTO[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -29,6 +39,7 @@ export default function ColonnesTab() {
   const [nouveauType, setNouveauType] = useState<ColumnType>('TEXT');
   const [editionId, setEditionId] = useState<string | null>(null);
   const [editionLabel, setEditionLabel] = useState('');
+  const [indexGlisse, setIndexGlisse] = useState<number | null>(null);
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -112,6 +123,36 @@ export default function ColonnesTab() {
     await patchColonne(colonne.id, { visible });
   };
 
+  const commencerGlisse = (index: number) => (evenement: DragEvent<HTMLTableRowElement>): void => {
+    setIndexGlisse(index);
+    evenement.dataTransfer.effectAllowed = 'move';
+    evenement.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const survolerGlisse = (evenement: DragEvent<HTMLTableRowElement>): void => {
+    evenement.preventDefault();
+    evenement.dataTransfer.dropEffect = 'move';
+  };
+
+  const deposer = (index: number) => async (
+    evenement: DragEvent<HTMLTableRowElement>,
+  ): Promise<void> => {
+    evenement.preventDefault();
+    const brut = evenement.dataTransfer.getData('text/plain');
+    const depuis = indexGlisse ?? Number.parseInt(brut, 10);
+    setIndexGlisse(null);
+    if (Number.isNaN(depuis) || depuis === index) {
+      return;
+    }
+    const reordonnees = deplacerElement(colonnes, depuis, index).map((colonne, rang) => ({
+      ...colonne,
+      position: rang,
+    }));
+    setColonnes(reordonnees);
+    await patchColonne(reordonnees[index].id, { position: index });
+    await charger();
+  };
+
   const changerType = async (id: string, type: ColumnType): Promise<void> => {
     try {
       const misAJour = await apiFetch<ColumnDTO>(`/columns/${id}`, {
@@ -160,6 +201,9 @@ export default function ColonnesTab() {
         <caption>Colonnes du tableau</caption>
         <thead>
           <tr>
+            <th scope="col">
+              <span className="sr-only">Ordre</span>
+            </th>
             <th scope="col">Libellé</th>
             <th scope="col">Type</th>
             <th scope="col">Visible</th>
@@ -169,7 +213,20 @@ export default function ColonnesTab() {
         </thead>
         <tbody>
           {colonnes.map((colonne) => (
-            <tr key={colonne.id} data-testid={`colonne-${colonne.key}`}>
+            <tr
+              key={colonne.id}
+              data-testid={`colonne-${colonne.key}`}
+              draggable
+              onDragStart={commencerGlisse(colonnes.indexOf(colonne))}
+              onDragOver={survolerGlisse}
+              onDrop={(evenement) => {
+                void deposer(colonnes.indexOf(colonne))(evenement);
+              }}
+              onDragEnd={() => setIndexGlisse(null)}
+            >
+              <td aria-hidden="true" title="Glisser pour réordonner">
+                ⠿
+              </td>
               <td>
                 {editionId === colonne.id ? (
                   <>

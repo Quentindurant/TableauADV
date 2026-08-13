@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ColumnDTO } from '@suivi/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../../lib/api', () => ({ apiFetch: vi.fn() }));
 
 import { apiFetch } from '../../../../lib/api';
-import ColonnesTab, { trierParPosition } from '../colonnes';
+import ColonnesTab, { deplacerElement, trierParPosition } from '../colonnes';
 
 const apiFetchMock = vi.mocked(apiFetch);
 
@@ -222,5 +222,69 @@ describe('ColonnesTab — renommage, largeur, visibilité', () => {
       'Élément introuvable : il vient peut-être d’être supprimé par un collègue.',
     );
     await waitFor(() => expect(apiFetchMock).toHaveBeenLastCalledWith('/columns'));
+  });
+});
+
+function dataTransferFactice(): DataTransfer {
+  const donnees = new Map<string, string>();
+  return {
+    effectAllowed: 'none',
+    dropEffect: 'none',
+    setData: (type: string, valeur: string) => {
+      donnees.set(type, valeur);
+    },
+    getData: (type: string) => donnees.get(type) ?? '',
+  } as unknown as DataTransfer;
+}
+
+describe('ColonnesTab — glisser-déposer', () => {
+  it('deplacerElement déplace un élément sans muter la source', () => {
+    const source = ['a', 'b', 'c'];
+    expect(deplacerElement(source, 0, 2)).toEqual(['b', 'c', 'a']);
+    expect(deplacerElement(source, 2, 0)).toEqual(['c', 'a', 'b']);
+    expect(deplacerElement(source, 0, 9)).toEqual(['a', 'b', 'c']);
+    expect(source).toEqual(['a', 'b', 'c']);
+  });
+
+  it('déposer la 2e ligne sur la 1re envoie PATCH { position: 0 } puis recharge', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce([STATUT, CLIENT])
+      .mockResolvedValueOnce({ ...CLIENT, position: 0 })
+      .mockResolvedValueOnce([{ ...CLIENT, position: 0 }, { ...STATUT, position: 1 }]);
+
+    render(<ColonnesTab />);
+    await screen.findByText('CLIENT');
+
+    const lignes = screen.getAllByRole('row').slice(1);
+    const transfert = dataTransferFactice();
+    fireEvent.dragStart(lignes[1], { dataTransfer: transfert });
+    fireEvent.dragOver(lignes[0], { dataTransfer: transfert });
+    fireEvent.drop(lignes[0], { dataTransfer: transfert });
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenNthCalledWith(2, '/columns/c1', {
+        method: 'PATCH',
+        body: JSON.stringify({ position: 0 }),
+      }),
+    );
+    await waitFor(() => expect(apiFetchMock).toHaveBeenLastCalledWith('/columns'));
+    await waitFor(() => {
+      const apres = screen.getAllByRole('row').slice(1);
+      expect(apres[0]).toHaveAttribute('data-testid', 'colonne-client');
+    });
+  });
+
+  it('déposer une ligne sur elle-même n’appelle pas l’API', async () => {
+    apiFetchMock.mockResolvedValueOnce([STATUT, CLIENT]);
+
+    render(<ColonnesTab />);
+    await screen.findByText('CLIENT');
+
+    const lignes = screen.getAllByRole('row').slice(1);
+    const transfert = dataTransferFactice();
+    fireEvent.dragStart(lignes[0], { dataTransfer: transfert });
+    fireEvent.drop(lignes[0], { dataTransfer: transfert });
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
