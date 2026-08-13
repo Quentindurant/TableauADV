@@ -90,12 +90,19 @@ export class RowsService {
    * avec `position`, les lignes actives de rang >= position sont décalées de +1.
    */
   async create(dto: CreateRowInput, userId: string): Promise<RowDTO> {
+    let shiftedIds: string[] = [];
+
     const created = await this.prisma.$transaction(async (tx) => {
       const siblings = await tx.row.count({ where: { month: dto.month, archived: false } });
       const position =
         dto.position === undefined ? siblings : Math.min(Math.max(dto.position, 0), siblings);
 
       if (position < siblings) {
+        const toShift = await tx.row.findMany({
+          where: { month: dto.month, archived: false, position: { gte: position } },
+          select: { id: true },
+        });
+        shiftedIds = toShift.map((row) => row.id);
         await tx.row.updateMany({
           where: { month: dto.month, archived: false, position: { gte: position } },
           data: { position: { increment: 1 } },
@@ -116,6 +123,7 @@ export class RowsService {
 
     const row = toRowDTO(created);
     this.emitter.emitRowCreated(row);
+    await this.emitRenumbered(shiftedIds, userId);
     return row;
   }
 
@@ -206,12 +214,15 @@ export class RowsService {
     }
     const targetMonth = dto.month ?? existing.month;
 
+    let renumberedIds: string[] = [];
+
     const moved = await this.prisma.$transaction(async (tx) => {
       const others = await tx.row.findMany({
         where: { month: targetMonth, archived: false, id: { not: id } },
         orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
-        select: { id: true },
+        select: { id: true, position: true },
       });
+      const originalPositions = new Map(others.map((row) => [row.id, row.position]));
       const ids = others.map((row) => row.id);
       const target = Math.min(Math.max(dto.position ?? ids.length, 0), ids.length);
       ids.splice(target, 0, id);
@@ -222,10 +233,15 @@ export class RowsService {
           data:
             ids[index] === id ? { month: targetMonth, position: index } : { position: index },
         });
+        // La ligne agissante est déjà couverte par row.moved : seuls les
+        // autres dont la position a VRAIMENT bougé doivent être diffusés.
+        if (ids[index] !== id && originalPositions.get(ids[index]) !== index) {
+          renumberedIds.push(ids[index]);
+        }
       }
 
       if (existing.month !== targetMonth) {
-        await this.renumberMonth(tx, existing.month);
+        renumberedIds = renumberedIds.concat(await this.renumberMonth(tx, existing.month));
       }
 
       await this.events.record(tx, {
@@ -245,6 +261,7 @@ export class RowsService {
 
     const row = toRowDTO(moved);
     this.emitter.emitRowMoved(row, existing.month);
+    await this.emitRenumbered(renumberedIds, userId);
     return row;
   }
 
@@ -258,6 +275,8 @@ export class RowsService {
       throw notFound('Ligne introuvable.');
     }
 
+    let renumberedIds: string[] = [];
+
     const updated = await this.prisma.$transaction(async (tx) => {
       if (archived) {
         await tx.row.update({ where: { id }, data: { archived: true } });
@@ -265,7 +284,7 @@ export class RowsService {
         const active = await tx.row.count({ where: { month: existing.month, archived: false } });
         await tx.row.update({ where: { id }, data: { archived: false, position: active } });
       }
-      await this.renumberMonth(tx, existing.month);
+      renumberedIds = await this.renumberMonth(tx, existing.month);
       await this.events.record(tx, { rowId: id, userId, type: 'archive', payload: { archived } });
       return tx.row.findUniqueOrThrow({ where: { id } });
     });
@@ -273,6 +292,7 @@ export class RowsService {
     const row = toRowDTO(updated);
     this.emitter.emitRowDeleted(row.id, row.month, existing.archived);
     this.emitter.emitRowCreated(row);
+    await this.emitRenumbered(renumberedIds, userId);
     return row;
   }
 
@@ -281,30 +301,52 @@ export class RowsService {
    * Aucun RowEvent 'delete' n'est consigné : RowEvent.rowId est en cascade,
    * l'événement serait effacé par la suppression dans la même transaction.
    */
-  async remove(id: string): Promise<void> {
+  async remove(id: string, userId: string): Promise<void> {
     const existing = await this.prisma.row.findUnique({ where: { id } });
     if (existing === null) {
       throw notFound('Ligne introuvable.');
     }
-    await this.prisma.$transaction(async (tx) => {
+    const renumberedIds = await this.prisma.$transaction(async (tx) => {
       await tx.row.delete({ where: { id } });
-      await this.renumberMonth(tx, existing.month);
+      return this.renumberMonth(tx, existing.month);
     });
 
     this.emitter.emitRowDeleted(id, existing.month, existing.archived);
+    await this.emitRenumbered(renumberedIds, userId);
   }
 
-  /** Réécrit les positions actives d'un mois en 0..n-1 sans changer l'ordre. */
-  private async renumberMonth(tx: Prisma.TransactionClient, month: string): Promise<void> {
+  /** Réécrit les positions actives d'un mois en 0..n-1 sans changer l'ordre. Renvoie les ids réellement renumérotés. */
+  private async renumberMonth(tx: Prisma.TransactionClient, month: string): Promise<string[]> {
     const rows = await tx.row.findMany({
       where: { month, archived: false },
       orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, position: true },
     });
+    const renumberedIds: string[] = [];
     for (let index = 0; index < rows.length; index += 1) {
       if (rows[index].position !== index) {
         await tx.row.update({ where: { id: rows[index].id }, data: { position: index } });
+        renumberedIds.push(rows[index].id);
       }
+    }
+    return renumberedIds;
+  }
+
+  /**
+   * Émet row.updated pour des lignes dont seule la POSITION a changé lors
+   * d'une renumérotation (création, déplacement, archivage, suppression).
+   * `changedKeys` est vide : aucune clé de `data`/`formats` n'a bougé, seul
+   * l'ordre d'affichage change — le store front applique via `upsertRow`
+   * (idempotent, re-trie sur la nouvelle position). Toujours appelé APRÈS
+   * le commit de la transaction (règle du contrat temps réel).
+   */
+  private async emitRenumbered(ids: string[], userId: string): Promise<void> {
+    if (ids.length === 0) {
+      return;
+    }
+    const rows = await this.prisma.row.findMany({ where: { id: { in: ids } } });
+    for (const row of rows) {
+      this.emitter.emitRowUpdated(toRowDTO(row), [], userId);
     }
   }
 

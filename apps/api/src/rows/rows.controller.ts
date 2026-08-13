@@ -95,7 +95,7 @@ export class RowsController {
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string): Promise<void> {
-    await this.rows.remove(id);
+  async remove(@Param('id') id: string, @CurrentUserId() userId: string): Promise<void> {
+    await this.rows.remove(id, userId);
   }
 }

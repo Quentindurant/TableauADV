@@ -62,6 +62,33 @@ describe('Realtime (e2e)', () => {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  /**
+   * Collecte les `count` prochaines occurrences de `event` (contrairement à
+   * `once`, l'écouteur est posé AVANT le déclenchement de l'action et
+   * n'en rate donc aucune même si plusieurs partent dans le même tick).
+   */
+  function several<T>(socket: Socket, event: string, count: number, timeoutMs = 5_000): Promise<T[]> {
+    return new Promise<T[]>((resolve, reject) => {
+      const results: T[] = [];
+      const timer = setTimeout(
+        () =>
+          reject(
+            new Error(`Seulement ${results.length}/${count} "${event}" reçu(s) en ${timeoutMs} ms`),
+          ),
+        timeoutMs,
+      );
+      function handler(payload: T): void {
+        results.push(payload);
+        if (results.length === count) {
+          clearTimeout(timer);
+          socket.off(event, handler);
+          resolve(results);
+        }
+      }
+      socket.on(event, handler);
+    });
+  }
+
   /** Envoie un message avec callback d ack (acknowledgement). */
   function ask<T>(socket: Socket, event: string, payload: unknown, timeoutMs = 5_000): Promise<T> {
     return new Promise<T>((resolve, reject) => {
@@ -592,6 +619,138 @@ describe('Realtime (e2e)', () => {
         .expect(201);
 
       expect(await recu).toEqual({ scope: 'users' });
+    });
+
+    // R2 : une renumérotation (create/move/archive/remove) déplace d'autres
+    // lignes que celle qui agit ; ces lignes doivent aussi être diffusées
+    // (sinon les collègues gardent un ordre périmé jusqu'au prochain reload).
+    describe('diffusion des lignes renumérotées (autres que la ligne agissante)', () => {
+      interface RenumberedPayload {
+        row: { id: string; position: number };
+        changedKeys: string[];
+        byUserId: string;
+      }
+
+      it('diffuse row.updated pour les lignes déplacées par un POST /api/rows/:id/move dans le même mois', async () => {
+        const a = await prisma.row.create({
+          data: { month: '2026-08', position: 0, data: { client: 'A' }, formats: {} },
+        });
+        const b = await prisma.row.create({
+          data: { month: '2026-08', position: 1, data: { client: 'B' }, formats: {} },
+        });
+        const c = await prisma.row.create({
+          data: { month: '2026-08', position: 2, data: { client: 'C' }, formats: {} },
+        });
+        const socketB = await clientDansLaRoom('month:2026-08');
+
+        const renumbered = several<RenumberedPayload>(socketB, 'row.updated', 2);
+        await request(app.getHttpServer())
+          .post(`/api/rows/${c.id}/move`)
+          .set('Cookie', cookieAlice)
+          .send({ position: 0 })
+          .expect(200);
+
+        const payloads = await renumbered;
+        expect(payloads.map((p) => p.row.id).sort()).toEqual([a.id, b.id].sort());
+        for (const payload of payloads) {
+          expect(payload.changedKeys).toEqual([]);
+          expect(payload.byUserId).toBe(alice.id);
+        }
+        const positions = new Map(payloads.map((p) => [p.row.id, p.row.position]));
+        expect(positions.get(a.id)).toBe(1);
+        expect(positions.get(b.id)).toBe(2);
+      });
+
+      it('ne diffuse aucun row.updated superflu quand un déplacement ne change la position de personne d autre', async () => {
+        const a = await prisma.row.create({
+          data: { month: '2026-08', position: 0, data: { client: 'A' }, formats: {} },
+        });
+        await prisma.row.create({
+          data: { month: '2026-08', position: 1, data: { client: 'B' }, formats: {} },
+        });
+        const socketB = await clientDansLaRoom('month:2026-08');
+
+        const inattendu = once<RenumberedPayload>(socketB, 'row.updated', 1000);
+        await request(app.getHttpServer())
+          .post(`/api/rows/${a.id}/move`)
+          .set('Cookie', cookieAlice)
+          .send({ position: 0 })
+          .expect(200);
+
+        await expect(inattendu).rejects.toThrow(new RegExp('Aucun evenement.*recu en 1000 ms'));
+      });
+
+      it('diffuse row.updated pour les lignes restantes renumérotées par un archivage', async () => {
+        const a = await prisma.row.create({
+          data: { month: '2026-08', position: 0, data: { client: 'A' }, formats: {} },
+        });
+        const b = await prisma.row.create({
+          data: { month: '2026-08', position: 1, data: { client: 'B' }, formats: {} },
+        });
+        const c = await prisma.row.create({
+          data: { month: '2026-08', position: 2, data: { client: 'C' }, formats: {} },
+        });
+        const socketB = await clientDansLaRoom('month:2026-08');
+
+        const renumbered = several<RenumberedPayload>(socketB, 'row.updated', 2);
+        await request(app.getHttpServer())
+          .post(`/api/rows/${a.id}/archive`)
+          .set('Cookie', cookieAlice)
+          .send({ archived: true })
+          .expect(200);
+
+        const payloads = await renumbered;
+        expect(payloads.map((p) => p.row.id).sort()).toEqual([b.id, c.id].sort());
+        const positions = new Map(payloads.map((p) => [p.row.id, p.row.position]));
+        expect(positions.get(b.id)).toBe(0);
+        expect(positions.get(c.id)).toBe(1);
+      });
+
+      it('diffuse row.updated pour les lignes restantes renumérotées par un DELETE', async () => {
+        const a = await prisma.row.create({
+          data: { month: '2026-08', position: 0, data: { client: 'A' }, formats: {} },
+        });
+        const b = await prisma.row.create({
+          data: { month: '2026-08', position: 1, data: { client: 'B' }, formats: {} },
+        });
+        const c = await prisma.row.create({
+          data: { month: '2026-08', position: 2, data: { client: 'C' }, formats: {} },
+        });
+        const socketB = await clientDansLaRoom('month:2026-08');
+
+        const renumbered = several<RenumberedPayload>(socketB, 'row.updated', 2);
+        await request(app.getHttpServer())
+          .delete(`/api/rows/${a.id}`)
+          .set('Cookie', cookieAlice)
+          .expect(204);
+
+        const payloads = await renumbered;
+        expect(payloads.map((p) => p.row.id).sort()).toEqual([b.id, c.id].sort());
+        expect(payloads.every((p) => p.byUserId === alice.id)).toBe(true);
+      });
+
+      it('diffuse row.updated pour les lignes décalées par une création à une position intermédiaire', async () => {
+        const a = await prisma.row.create({
+          data: { month: '2026-08', position: 0, data: { client: 'A' }, formats: {} },
+        });
+        const b = await prisma.row.create({
+          data: { month: '2026-08', position: 1, data: { client: 'B' }, formats: {} },
+        });
+        const socketB = await clientDansLaRoom('month:2026-08');
+
+        const renumbered = several<RenumberedPayload>(socketB, 'row.updated', 2);
+        await request(app.getHttpServer())
+          .post('/api/rows')
+          .set('Cookie', cookieAlice)
+          .send({ month: '2026-08', position: 0 })
+          .expect(201);
+
+        const payloads = await renumbered;
+        expect(payloads.map((p) => p.row.id).sort()).toEqual([a.id, b.id].sort());
+        const positions = new Map(payloads.map((p) => [p.row.id, p.row.position]));
+        expect(positions.get(a.id)).toBe(1);
+        expect(positions.get(b.id)).toBe(2);
+      });
     });
   });
 });
