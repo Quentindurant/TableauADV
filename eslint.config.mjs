@@ -36,7 +36,7 @@ export default tseslint.config(
   prettier,
   // Configuration pour fichiers CommonJS (.cjs et *.config.js)
   {
-    files: ['**/*.cjs', '**/webpack.config.js', '**/jest.config.js'],
+    files: ['**/*.cjs', '**/webpack.config.js', '**/jest.config.js', 'deploy/ecosystem.config.js'],
     languageOptions: {
       sourceType: 'commonjs',
       globals: nodeGlobals,
