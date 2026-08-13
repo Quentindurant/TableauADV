@@ -119,3 +119,108 @@ describe('ColonnesTab — lecture et ajout', () => {
     );
   });
 });
+
+describe('ColonnesTab — renommage, largeur, visibilité', () => {
+  it('renomme une colonne en inline (Entrée) et envoie PATCH { label }', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockResolvedValueOnce({ ...CLIENT, label: 'CLIENT FINAL' });
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Renommer CLIENT' }));
+
+    const champ = screen.getByLabelText('Nouveau libellé de CLIENT');
+    await utilisateur.clear(champ);
+    await utilisateur.type(champ, 'CLIENT FINAL{Enter}');
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/c1', {
+        method: 'PATCH',
+        body: JSON.stringify({ label: 'CLIENT FINAL' }),
+      }),
+    );
+    expect(await screen.findByText('CLIENT FINAL')).toBeInTheDocument();
+  });
+
+  it('annule le renommage avec Échap sans appeler l’API', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock.mockResolvedValueOnce([CLIENT]);
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Renommer CLIENT' }));
+    await utilisateur.type(screen.getByLabelText('Nouveau libellé de CLIENT'), 'PERDU{Escape}');
+
+    expect(screen.getByText('CLIENT')).toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('bascule la visibilité et envoie PATCH { visible }', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockResolvedValueOnce({ ...CLIENT, visible: false });
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByLabelText('Colonne CLIENT visible'));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/c1', {
+        method: 'PATCH',
+        body: JSON.stringify({ visible: false }),
+      }),
+    );
+  });
+
+  it('enregistre la largeur à la sortie du champ', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockResolvedValueOnce({ ...CLIENT, width: 300 });
+
+    render(<ColonnesTab />);
+    const champ = await screen.findByLabelText('Largeur de CLIENT');
+    await utilisateur.clear(champ);
+    await utilisateur.type(champ, '300');
+    await utilisateur.tab();
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/c1', {
+        method: 'PATCH',
+        body: JSON.stringify({ width: 300 }),
+      }),
+    );
+  });
+
+  it('refuse une largeur hors bornes sans appeler l’API', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock.mockResolvedValueOnce([CLIENT]);
+
+    render(<ColonnesTab />);
+    const champ = await screen.findByLabelText('Largeur de CLIENT');
+    await utilisateur.clear(champ);
+    await utilisateur.type(champ, '9');
+    await utilisateur.tab();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'La largeur doit être comprise entre 40 et 1000 pixels.',
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('affiche NOT_FOUND en français et recharge la liste', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockRejectedValueOnce({ status: 404, code: 'NOT_FOUND', message: 'Colonne introuvable' })
+      .mockResolvedValueOnce([]);
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByLabelText('Colonne CLIENT visible'));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Élément introuvable : il vient peut-être d’être supprimé par un collègue.',
+    );
+    await waitFor(() => expect(apiFetchMock).toHaveBeenLastCalledWith('/columns'));
+  });
+});

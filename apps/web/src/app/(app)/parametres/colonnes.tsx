@@ -27,6 +27,8 @@ export default function ColonnesTab() {
   const [avertissement, setAvertissement] = useState<string | null>(null);
   const [nouveauLabel, setNouveauLabel] = useState('');
   const [nouveauType, setNouveauType] = useState<ColumnType>('TEXT');
+  const [editionId, setEditionId] = useState<string | null>(null);
+  const [editionLabel, setEditionLabel] = useState('');
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -44,6 +46,71 @@ export default function ColonnesTab() {
   useEffect(() => {
     void charger();
   }, [charger]);
+
+  const patchColonne = useCallback(
+    async (
+      id: string,
+      corps: Partial<Pick<ColumnDTO, 'label' | 'position' | 'width' | 'visible'>>,
+    ): Promise<void> => {
+      try {
+        const misAJour = await apiFetch<ColumnDTO>(`/columns/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(corps),
+        });
+        setColonnes((precedentes) =>
+          trierParPosition(precedentes.map((c) => (c.id === misAJour.id ? misAJour : c))),
+        );
+        setErreur(null);
+      } catch (err) {
+        // charger() rechargent la liste réinitialise l'erreur à null en cas de succès :
+        // on affiche donc le message après le rechargement pour qu'il ne soit pas effacé.
+        await charger();
+        setErreur(messageErreurApi(err));
+      }
+    },
+    [charger],
+  );
+
+  const demarrerEdition = (colonne: ColumnDTO): void => {
+    setEditionId(colonne.id);
+    setEditionLabel(colonne.label);
+  };
+
+  const annulerEdition = (): void => {
+    setEditionId(null);
+    setEditionLabel('');
+  };
+
+  const validerEdition = async (colonne: ColumnDTO): Promise<void> => {
+    const label = editionLabel.trim();
+    annulerEdition();
+    if (label === '' || label === colonne.label) {
+      return;
+    }
+    await patchColonne(colonne.id, { label });
+  };
+
+  const changerLargeur = (id: string, saisie: string): void => {
+    const largeur = Number.parseInt(saisie, 10);
+    setColonnes((precedentes) =>
+      precedentes.map((c) => (c.id === id ? { ...c, width: Number.isNaN(largeur) ? 0 : largeur } : c)),
+    );
+  };
+
+  const validerLargeur = async (colonne: ColumnDTO): Promise<void> => {
+    if (colonne.width < 40 || colonne.width > 1000) {
+      setErreur('La largeur doit être comprise entre 40 et 1000 pixels.');
+      return;
+    }
+    await patchColonne(colonne.id, { width: colonne.width });
+  };
+
+  const basculerVisible = async (colonne: ColumnDTO, visible: boolean): Promise<void> => {
+    setColonnes((precedentes) =>
+      precedentes.map((c) => (c.id === colonne.id ? { ...c, visible } : c)),
+    );
+    await patchColonne(colonne.id, { visible });
+  };
 
   const changerType = async (id: string, type: ColumnType): Promise<void> => {
     try {
@@ -103,7 +170,45 @@ export default function ColonnesTab() {
         <tbody>
           {colonnes.map((colonne) => (
             <tr key={colonne.id} data-testid={`colonne-${colonne.key}`}>
-              <td>{colonne.label}</td>
+              <td>
+                {editionId === colonne.id ? (
+                  <>
+                    <input
+                      aria-label={`Nouveau libellé de ${colonne.label}`}
+                      value={editionLabel}
+                      autoFocus
+                      onChange={(evenement) => setEditionLabel(evenement.target.value)}
+                      onKeyDown={(evenement) => {
+                        if (evenement.key === 'Enter') {
+                          evenement.preventDefault();
+                          void validerEdition(colonne);
+                        }
+                        if (evenement.key === 'Escape') {
+                          evenement.preventDefault();
+                          annulerEdition();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      aria-label={`Valider le libellé de ${colonne.label}`}
+                      onClick={() => {
+                        void validerEdition(colonne);
+                      }}
+                    >
+                      ✓
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    aria-label={`Renommer ${colonne.label}`}
+                    onClick={() => demarrerEdition(colonne)}
+                  >
+                    {colonne.label}
+                  </button>
+                )}
+              </td>
               <td>
                 <select
                   aria-label={`Type de la colonne ${colonne.label}`}
@@ -119,8 +224,29 @@ export default function ColonnesTab() {
                   ))}
                 </select>
               </td>
-              <td>{colonne.visible ? 'Oui' : 'Non'}</td>
-              <td>{colonne.width}</td>
+              <td>
+                <input
+                  type="checkbox"
+                  aria-label={`Colonne ${colonne.label} visible`}
+                  checked={colonne.visible}
+                  onChange={(evenement) => {
+                    void basculerVisible(colonne, evenement.target.checked);
+                  }}
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  aria-label={`Largeur de ${colonne.label}`}
+                  value={String(colonne.width)}
+                  min={40}
+                  max={1000}
+                  onChange={(evenement) => changerLargeur(colonne.id, evenement.target.value)}
+                  onBlur={() => {
+                    void validerLargeur(colonne);
+                  }}
+                />
+              </td>
               <td />
             </tr>
           ))}
