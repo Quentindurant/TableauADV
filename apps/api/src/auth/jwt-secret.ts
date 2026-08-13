@@ -3,7 +3,9 @@
  * secret par défaut évite d'imposer un `.env` pour lancer les tests unitaires.
  */
 export function jwtSecret(): string {
-  const secret = process.env.JWT_SECRET;
+  // .trim() : un secret composé uniquement d'espaces (ex. JWT_SECRET="   ")
+  // ne doit pas être traité comme un secret valide.
+  const secret = process.env.JWT_SECRET?.trim();
   if (secret && secret.length > 0) {
     return secret;
   }
