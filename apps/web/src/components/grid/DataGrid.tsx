@@ -23,7 +23,7 @@ import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
-import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
+import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
 import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { RowContextMenu } from './RowContextMenu';
@@ -249,14 +249,26 @@ export function DataGrid({ reload }: DataGridProps) {
   );
 
   // --- Édition d'une cellule ------------------------------------------------
+  // Rollback fin par clé (Feature 7) : `applyCellEdit` gère lui-même
+  // l'optimisme, la confirmation serveur et le rollback ciblé sur 409/erreur,
+  // sans recharger tout le mois (voir cellCommit.ts).
+  const flashCell = useCallback(
+    (rowId: string, colKey: string) => {
+      const node = gridApi?.getRowNode(rowId);
+      if (node) {
+        gridApi?.flashCells({ rowNodes: [node], columns: [colKey] });
+      }
+    },
+    [gridApi],
+  );
+
   const onCellValueChanged = useCallback(
     (event: CellValueChangedEvent<RowDTO, CellValue>) => {
+      const rowId = (event.data as RowDTO).id;
       const colKey = event.column.getColId();
-      const row = useAppStore.getState().rows.find((item) => item.id === event.data.id);
-      if (!row || !colKey) return;
-      void commitCellEdit(row, colKey, event.data.data[colKey] ?? null, deps);
+      void applyCellEdit(rowId, colKey, event.newValue as CellValue, { flashCell });
     },
-    [deps],
+    [flashCell],
   );
 
   // --- Réordonnancement par glisser-déposer --------------------------------

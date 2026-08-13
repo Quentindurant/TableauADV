@@ -1,5 +1,6 @@
 import type { CellFormat, CellValue, RowDTO } from '@suivi/shared';
-import { ApiRequestError } from '../../lib/api';
+import { ApiRequestError, apiFetch } from '../../lib/api';
+import { useAppStore } from '../../lib/store';
 
 export interface CommitDeps {
   patchRow: (
@@ -67,6 +68,67 @@ export async function commitCellEdit(
         'error',
       );
     }
+  }
+}
+
+export const CONFLICT_MESSAGE = 'Modifié par un collègue entre-temps';
+export const EDIT_FAILED_MESSAGE = 'Modification non enregistrée — vérifiez votre connexion';
+
+export interface CellEditDeps {
+  /** Clignotement AG Grid de la cellule rejetée (injectable pour les tests). */
+  flashCell?: (rowId: string, colKey: string) => void;
+}
+
+interface VersionConflictDetails {
+  current: RowDTO;
+  conflictKeys: string[];
+}
+
+/**
+ * Écrit une cellule : affichage optimiste immédiat, PATCH avec
+ * `expectedVersion`, puis confirmation (nouvelle version) ou rollback fin
+ * (par clé, sans recharger tout le mois).
+ */
+export async function applyCellEdit(
+  rowId: string,
+  colKey: string,
+  value: CellValue,
+  deps: CellEditDeps = {},
+): Promise<void> {
+  const store = useAppStore.getState();
+  const known = store.rows.find((r) => r.id === rowId);
+  if (!known) {
+    return;
+  }
+  const previousValue = known.data[colKey] ?? null;
+  const expectedVersion = known.version;
+
+  store.setRowLocalValue(rowId, colKey, value);
+
+  try {
+    const updated = await apiFetch<RowDTO>(`/rows/${rowId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ expectedVersion, patch: { [colKey]: value } }),
+    });
+    useAppStore.getState().replaceRow(updated);
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.code === 'VERSION_CONFLICT') {
+      const details = error.details as VersionConflictDetails | undefined;
+      if (details?.current) {
+        useAppStore.getState().replaceRow(details.current);
+      } else {
+        useAppStore.getState().setRowLocalValue(rowId, colKey, previousValue);
+      }
+      useAppStore.getState().showToast(CONFLICT_MESSAGE, 'error');
+      deps.flashCell?.(rowId, colKey);
+      return;
+    }
+
+    useAppStore.getState().setRowLocalValue(rowId, colKey, previousValue);
+    const message =
+      error instanceof ApiRequestError ? error.message : EDIT_FAILED_MESSAGE;
+    useAppStore.getState().showToast(message, 'error');
+    deps.flashCell?.(rowId, colKey);
   }
 }
 
