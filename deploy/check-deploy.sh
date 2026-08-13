@@ -147,6 +147,36 @@ check_backup() {
   expect_grep "$d" '/var/backups/suivi-commandes' "backup.md : emplacement des sauvegardes"
 }
 
+check_install() {
+  local f="deploy/install.md"
+  expect_file "$f"
+  expect_grep "$f" 'nodesource' "install : dépôt NodeSource pour Node 22"
+  expect_grep "$f" 'setup_22\.x' "install : script d'installation Node 22"
+  expect_grep "$f" 'corepack enable' "install : pnpm activé via corepack"
+  expect_grep "$f" 'corepack prepare pnpm@' "install : version de pnpm épinglée"
+  expect_grep "$f" 'postgresql-16' "install : PostgreSQL 16"
+  expect_grep "$f" 'CREATE DATABASE suivi_commandes' "install : création de la base"
+  expect_grep "$f" 'DATABASE_URL=postgresql://' "install : DATABASE_URL documentée"
+  expect_grep "$f" 'openssl rand -base64 32' "install : JWT_SECRET généré aléatoirement"
+  expect_grep "$f" 'git clone' "install : clonage du dépôt"
+  expect_grep "$f" 'pnpm install --frozen-lockfile' "install : installation des dépendances"
+  expect_grep "$f" 'prisma migrate deploy' "install : migrations Prisma en production"
+  expect_grep "$f" 'prisma db seed' "install : seed initial"
+  expect_grep "$f" 'import:xlsx' "install : import du classeur Excel"
+  expect_grep "$f" 'filter @suivi/api build' "install : build de l'API"
+  expect_grep "$f" 'filter @suivi/web build' "install : build du web"
+  expect_grep "$f" 'pm2 start deploy/ecosystem.config.js' "install : démarrage PM2"
+  expect_grep "$f" 'pm2 startup' "install : PM2 au démarrage du serveur"
+  expect_grep "$f" 'pm2 save' "install : liste PM2 persistée"
+  expect_grep "$f" 'a2enmod proxy proxy_http proxy_wstunnel rewrite ssl headers' \
+    "install : activation des modules Apache"
+  expect_grep "$f" 'a2ensite suivi-commandes' "install : activation du vhost"
+  expect_grep "$f" 'apachectl configtest' "install : validation de la configuration Apache"
+  expect_grep "$f" 'certbot --apache' "install : obtention du certificat TLS"
+  expect_grep "$f" 'curl -s https://.*/api/health' "install : vérification finale HTTPS"
+  expect_grep "$f" 'deploy/backup.md' "install : renvoi vers la procédure de sauvegarde"
+}
+
 run_check() {
   local name="$1"
   printf '\n--- %s ---\n' "$name"
