@@ -168,5 +168,13 @@ describe('Historique et recherche de lignes (e2e)', () => {
         .expect(200);
       expect(res.body).toEqual([]);
     });
+
+    it('retourne un tableau vide (pas 500) quand q est répété (Express en fait un tableau)', async () => {
+      const res = await request(ctx.app.getHttpServer())
+        .get('/api/rows/search?q=a&q=b')
+        .set('Cookie', cookie)
+        .expect(200);
+      expect(res.body).toEqual([]);
+    });
   });
 });
