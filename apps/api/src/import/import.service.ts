@@ -21,6 +21,15 @@ const MAX_COLONNES = 40;
 const MAX_LIGNES = 20000;
 const LOT_INSERTION = 500;
 
+/**
+ * Purge + création des colonnes/choix + insertion de toutes les lignes
+ * peuvent porter sur des dizaines de feuilles et jusqu'à MAX_LIGNES lignes
+ * par feuille : le timeout interactif par défaut de Prisma (5 s) est
+ * insuffisant, on l'élargit explicitement.
+ */
+const IMPORT_TRANSACTION_TIMEOUT_MS = 120_000;
+const IMPORT_TRANSACTION_MAX_WAIT_MS = 10_000;
+
 const SURLIGNAGES: Readonly<Record<string, string>> = {
   FF0000: '#FF0000',
   FFFF00: '#FFFF00',
@@ -110,21 +119,27 @@ function computeWidths(reference: Worksheet | undefined): Record<string, number>
 
 // ---------------------------------------------------------------- écriture
 
-async function purge(prisma: PrismaClient): Promise<void> {
+/**
+ * `tx` est le client transactionnel fourni par `prisma.$transaction(...)` dans
+ * `importWorkbook` : purge, création des colonnes/choix et insertion des
+ * lignes s'exécutent dans UNE seule transaction, commitée ou annulée en bloc
+ * (même pattern que `RowEventsService.record`).
+ */
+async function purge(tx: Prisma.TransactionClient): Promise<void> {
   // Ordre imposé par les clés étrangères. `User` n'est jamais touché.
-  await prisma.rowEvent.deleteMany();
-  await prisma.row.deleteMany();
-  await prisma.choice.deleteMany();
-  await prisma.column.deleteMany();
+  await tx.rowEvent.deleteMany();
+  await tx.row.deleteMany();
+  await tx.choice.deleteMany();
+  await tx.column.deleteMany();
 }
 
 async function createColumnsAndChoices(
-  prisma: PrismaClient,
+  tx: Prisma.TransactionClient,
   largeurs: Record<string, number>,
 ): Promise<number> {
   let nbChoix = 0;
   for (const [position, colonne] of COLUMNS.entries()) {
-    const creee = await prisma.column.create({
+    const creee = await tx.column.create({
       data: {
         key: colonne.key,
         label: colonne.label,
@@ -135,7 +150,7 @@ async function createColumnsAndChoices(
     });
     const choix = CHOICES_BY_COLUMN[colonne.key];
     if (choix !== undefined && choix.length > 0) {
-      await prisma.choice.createMany({
+      await tx.choice.createMany({
         data: choix.map((valeur, rang) => ({
           columnId: creee.id,
           label: valeur.label,
@@ -151,10 +166,10 @@ async function createColumnsAndChoices(
   return nbChoix;
 }
 
-async function insertRows(prisma: PrismaClient, lignes: readonly BuiltRow[]): Promise<void> {
+async function insertRows(tx: Prisma.TransactionClient, lignes: readonly BuiltRow[]): Promise<void> {
   for (let debut = 0; debut < lignes.length; debut += LOT_INSERTION) {
     const lot = lignes.slice(debut, debut + LOT_INSERTION);
-    await prisma.row.createMany({
+    await tx.row.createMany({
       data: lot.map((ligne) => ({
         month: ligne.month,
         position: ligne.position,
@@ -178,31 +193,42 @@ export async function importWorkbook(
   const workbook = new Workbook();
   // Deux @types/node coexistent dans l'arbre de dépendances (repairZohoXlsx vs
   // exceljs), rendant leurs types Buffer nominalement incompatibles malgré une
-  // forme identique.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await workbook.xlsx.load(repare as any);
+  // forme identique. `ArrayBuffer` est le dénominateur commun structurel des
+  // deux définitions de Buffer en jeu ici, donc ce détour type-checke sans
+  // recourir à `any`.
+  await workbook.xlsx.load(repare as unknown as ArrayBuffer);
 
   const reference = workbook.worksheets.find(
     (feuille) => feuille.name.trim() === WIDTH_REFERENCE_SHEET,
   );
 
-  await purge(prisma);
-  const nbChoix = await createColumnsAndChoices(prisma, computeWidths(reference));
-
   const rapports: SheetReport[] = [];
   let total = 0;
+  let nbChoix = 0;
 
-  for (const worksheet of workbook.worksheets) {
-    const nom = worksheet.name;
-    const mois = sheetNameToMonth(nom);
-    const estArchive = nom.trim() === ARCHIVES_SHEET_NAME;
-    if (mois === null && !estArchive) {
-      continue;
-    }
-    const rapport = await importSheet(prisma, worksheet, mois, estArchive);
-    rapports.push(rapport);
-    total += rapport.imported;
-  }
+  // Remplacement intégral en une seule transaction : purge, colonnes/choix
+  // et lignes de toutes les feuilles sont commités ensemble ou pas du tout.
+  // Un échec en cours de route (colonne, choix ou lot de lignes) ne doit
+  // jamais laisser la base dans un état partiellement purgé/reconstruit.
+  await prisma.$transaction(
+    async (tx) => {
+      await purge(tx);
+      nbChoix = await createColumnsAndChoices(tx, computeWidths(reference));
+
+      for (const worksheet of workbook.worksheets) {
+        const nom = worksheet.name;
+        const mois = sheetNameToMonth(nom);
+        const estArchive = nom.trim() === ARCHIVES_SHEET_NAME;
+        if (mois === null && !estArchive) {
+          continue;
+        }
+        const rapport = await importSheet(tx, worksheet, mois, estArchive);
+        rapports.push(rapport);
+        total += rapport.imported;
+      }
+    },
+    { timeout: IMPORT_TRANSACTION_TIMEOUT_MS, maxWait: IMPORT_TRANSACTION_MAX_WAIT_MS },
+  );
 
   return {
     file: filePath,
@@ -295,7 +321,7 @@ function monthOfRow(cells: CellsOutcome): string {
 }
 
 async function importSheet(
-  prisma: PrismaClient,
+  tx: Prisma.TransactionClient,
   worksheet: Worksheet,
   month: string | null,
   archived: boolean,
@@ -331,7 +357,7 @@ async function importSheet(
     });
   }
 
-  await insertRows(prisma, lignes);
+  await insertRows(tx, lignes);
 
   const anomalies: string[] = [];
   if (nonMappees.size > 0) {

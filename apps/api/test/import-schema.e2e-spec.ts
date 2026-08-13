@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { pastelFor } from '@suivi/shared';
+import { seed } from '../prisma/seed';
 import { importWorkbook, DEFAULT_COLUMN_WIDTH } from '../src/import/import.service';
 import { buildTestWorkbookBuffer } from './helpers/build-workbook';
+
+const TEMOIN_EMAIL = 'temoin-import@example.test';
 
 describe('importWorkbook — colonnes, choix et purge (e2e)', () => {
   const prisma = new PrismaClient();
@@ -28,6 +31,10 @@ describe('importWorkbook — colonnes, choix et purge (e2e)', () => {
   }, 120000);
 
   afterAll(async () => {
+    // Restaure l'état seedé (16 colonnes + choix) pour les suites voisines
+    // et retire l'utilisateur témoin créé par le test ci-dessous.
+    await seed(prisma);
+    await prisma.user.deleteMany({ where: { email: TEMOIN_EMAIL } });
     await prisma.$disconnect();
   });
 

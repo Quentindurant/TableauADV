@@ -2,6 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PrismaClient, type Row } from '@prisma/client';
+import { seed } from '../prisma/seed';
 import { importWorkbook, type ImportReport } from '../src/import/import.service';
 import { buildTestWorkbookBuffer } from './helpers/build-workbook';
 
@@ -25,6 +26,8 @@ describe('importWorkbook — lignes (e2e)', () => {
   }, 120000);
 
   afterAll(async () => {
+    // Restaure l'état seedé (16 colonnes + choix) pour les suites voisines.
+    await seed(prisma);
     await prisma.$disconnect();
   });
 
