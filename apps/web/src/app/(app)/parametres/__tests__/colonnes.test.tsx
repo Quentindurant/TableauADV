@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ColumnDTO } from '@suivi/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -286,5 +286,87 @@ describe('ColonnesTab — glisser-déposer', () => {
     fireEvent.drop(lignes[0], { dataTransfer: transfert });
 
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ColonnesTab — suppression', () => {
+  it('supprime une colonne vide après confirmation', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock.mockResolvedValueOnce([CLIENT]).mockResolvedValueOnce(undefined);
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer CLIENT' }));
+
+    const dialogue = screen.getByRole('dialog');
+    expect(dialogue).toHaveTextContent('Supprimer la colonne « CLIENT » ?');
+    await utilisateur.click(within(dialogue).getByRole('button', { name: 'Supprimer' }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/c1', { method: 'DELETE' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('CLIENT')).not.toBeInTheDocument();
+  });
+
+  it('annule la suppression sans appeler l’API', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock.mockResolvedValueOnce([CLIENT]);
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer CLIENT' }));
+    await utilisateur.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Annuler' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sur 409 COLUMN_HAS_DATA, ouvre le second dialogue puis supprime avec ?force=true', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockRejectedValueOnce({
+        status: 409,
+        code: 'COLUMN_HAS_DATA',
+        message: 'La colonne contient des données',
+      })
+      .mockResolvedValueOnce(undefined);
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer CLIENT' }));
+    await utilisateur.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer' }));
+
+    const forcage = await screen.findByRole('dialog');
+    expect(forcage).toHaveTextContent('contient déjà des données');
+    expect(forcage).toHaveTextContent('effacera définitivement ces valeurs dans toutes les lignes');
+
+    await utilisateur.click(
+      within(forcage).getByRole('button', { name: 'Supprimer quand même avec les données' }),
+    );
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/c1?force=true', { method: 'DELETE' }),
+    );
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.queryByText('CLIENT')).not.toBeInTheDocument();
+  });
+
+  it('affiche une erreur et ferme le dialogue si la suppression forcée échoue', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([CLIENT])
+      .mockRejectedValueOnce({ status: 409, code: 'COLUMN_HAS_DATA', message: 'données' })
+      .mockRejectedValueOnce({ status: 404, code: 'NOT_FOUND', message: 'introuvable' });
+
+    render(<ColonnesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Supprimer CLIENT' }));
+    await utilisateur.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Supprimer' }));
+    await utilisateur.click(
+      within(await screen.findByRole('dialog')).getByRole('button', {
+        name: 'Supprimer quand même avec les données',
+      }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Élément introuvable');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });

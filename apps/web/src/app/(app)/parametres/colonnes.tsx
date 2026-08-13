@@ -4,7 +4,7 @@ import type { ColumnDTO, ColumnType } from '@suivi/shared';
 import { useCallback, useEffect, useState, type DragEvent, type FormEvent } from 'react';
 
 import { apiFetch } from '../../../lib/api';
-import { messageErreurApi } from './messages';
+import { aCodeErreur, messageErreurApi } from './messages';
 
 export const TYPES_COLONNE: { valeur: ColumnType; libelle: string }[] = [
   { valeur: 'TEXT', libelle: 'Texte' },
@@ -30,6 +30,11 @@ export function deplacerElement<T>(items: readonly T[], depuis: number, vers: nu
   return copie;
 }
 
+type EtatSuppression =
+  | { phase: 'aucune' }
+  | { phase: 'confirmation'; colonne: ColumnDTO }
+  | { phase: 'forcage'; colonne: ColumnDTO };
+
 export default function ColonnesTab() {
   const [colonnes, setColonnes] = useState<ColumnDTO[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -40,6 +45,7 @@ export default function ColonnesTab() {
   const [editionId, setEditionId] = useState<string | null>(null);
   const [editionLabel, setEditionLabel] = useState('');
   const [indexGlisse, setIndexGlisse] = useState<number | null>(null);
+  const [suppression, setSuppression] = useState<EtatSuppression>({ phase: 'aucune' });
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -151,6 +157,28 @@ export default function ColonnesTab() {
     setColonnes(reordonnees);
     await patchColonne(reordonnees[index].id, { position: index });
     await charger();
+  };
+
+  const confirmerSuppression = async (force: boolean): Promise<void> => {
+    if (suppression.phase === 'aucune') {
+      return;
+    }
+    const cible = suppression.colonne;
+    try {
+      await apiFetch<void>(`/columns/${cible.id}${force ? '?force=true' : ''}`, {
+        method: 'DELETE',
+      });
+      setColonnes((precedentes) => precedentes.filter((c) => c.id !== cible.id));
+      setSuppression({ phase: 'aucune' });
+      setErreur(null);
+    } catch (err) {
+      if (!force && aCodeErreur(err, 'COLUMN_HAS_DATA')) {
+        setSuppression({ phase: 'forcage', colonne: cible });
+        return;
+      }
+      setErreur(messageErreurApi(err));
+      setSuppression({ phase: 'aucune' });
+    }
   };
 
   const changerType = async (id: string, type: ColumnType): Promise<void> => {
@@ -304,7 +332,15 @@ export default function ColonnesTab() {
                   }}
                 />
               </td>
-              <td />
+              <td>
+                <button
+                  type="button"
+                  aria-label={`Supprimer ${colonne.label}`}
+                  onClick={() => setSuppression({ phase: 'confirmation', colonne })}
+                >
+                  Supprimer
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -342,6 +378,44 @@ export default function ColonnesTab() {
         </select>
         <button type="submit">Ajouter la colonne</button>
       </form>
+
+      {suppression.phase === 'confirmation' && (
+        <div role="dialog" aria-modal="true" aria-label="Confirmer la suppression de la colonne">
+          <p>Supprimer la colonne « {suppression.colonne.label} » ?</p>
+          <p>Cette action est définitive et ne peut pas être annulée.</p>
+          <button type="button" onClick={() => setSuppression({ phase: 'aucune' })}>
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void confirmerSuppression(false);
+            }}
+          >
+            Supprimer
+          </button>
+        </div>
+      )}
+
+      {suppression.phase === 'forcage' && (
+        <div role="dialog" aria-modal="true" aria-label="La colonne contient des données">
+          <p>
+            La colonne « {suppression.colonne.label} » contient déjà des données. La supprimer
+            effacera définitivement ces valeurs dans toutes les lignes, y compris les archives.
+          </p>
+          <button type="button" onClick={() => setSuppression({ phase: 'aucune' })}>
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void confirmerSuppression(true);
+            }}
+          >
+            Supprimer quand même avec les données
+          </button>
+        </div>
+      )}
     </section>
   );
 }
