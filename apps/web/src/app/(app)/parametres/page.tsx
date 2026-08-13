@@ -1,0 +1,47 @@
+'use client';
+
+import { useState } from 'react';
+
+import ColonnesTab from './colonnes';
+import EquipeTab from './equipe';
+import ListesTab from './listes';
+
+export type OngletParametres = 'colonnes' | 'listes' | 'equipe';
+
+const ONGLETS: { id: OngletParametres; libelle: string }[] = [
+  { id: 'colonnes', libelle: 'Colonnes' },
+  { id: 'listes', libelle: 'Listes & couleurs' },
+  { id: 'equipe', libelle: 'Équipe' },
+];
+
+export default function ParametresPage() {
+  const [onglet, setOnglet] = useState<OngletParametres>('colonnes');
+
+  return (
+    <main>
+      <h1>Paramètres</h1>
+
+      <div role="tablist" aria-label="Sections des paramètres">
+        {ONGLETS.map((element) => (
+          <button
+            key={element.id}
+            type="button"
+            role="tab"
+            id={`onglet-${element.id}`}
+            aria-controls={`panneau-${element.id}`}
+            aria-selected={onglet === element.id}
+            onClick={() => setOnglet(element.id)}
+          >
+            {element.libelle}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel" id={`panneau-${onglet}`} aria-labelledby={`onglet-${onglet}`}>
+        {onglet === 'colonnes' && <ColonnesTab />}
+        {onglet === 'listes' && <ListesTab />}
+        {onglet === 'equipe' && <EquipeTab />}
+      </div>
+    </main>
+  );
+}
