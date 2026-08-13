@@ -1,10 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { Workbook, type Worksheet } from 'exceljs';
-import { CHOICES_BY_COLUMN, COLUMNS } from './colors';
-import { buildHeaderMap, COLUMN_KEYS_IN_ORDER } from './header-mapping';
+import { Workbook, type Cell, type FillPattern, type Worksheet } from 'exceljs';
+import { allowedValues, CHOICES_BY_COLUMN, COLUMNS, SELECT_KEYS } from './colors';
+import { buildHeaderMap, COLUMN_KEYS_IN_ORDER, type HeaderMapping } from './header-mapping';
 import { sheetNameToMonth } from './month-mapping';
-import { normalizeCellValue } from './normalize';
+import { ISO_DATE, normalizeCellValue } from './normalize';
 import { repairZohoXlsx } from './repair-zoho';
 
 /** Nom de la feuille d'archives, comparé après `trim()` (le classeur a un espace final). */
@@ -18,7 +18,13 @@ export const DEFAULT_COLUMN_WIDTH = 150;
 
 const PIXELS_PAR_CARACTERE = 7;
 const MAX_COLONNES = 40;
+const MAX_LIGNES = 20000;
 const LOT_INSERTION = 500;
+
+const SURLIGNAGES: Readonly<Record<string, string>> = {
+  FF0000: '#FF0000',
+  FFFF00: '#FFFF00',
+};
 
 export interface SheetReport {
   sheet: string;
@@ -58,6 +64,23 @@ function headersOf(worksheet: Worksheet): (string | null)[] {
     entetes.push(normalizeCellValue(ligneEntete.getCell(index).value));
   }
   return entetes;
+}
+
+function highlightOf(cell: Cell): string | null {
+  const remplissage = cell.fill as FillPattern | undefined;
+  if (
+    remplissage === undefined ||
+    remplissage.type !== 'pattern' ||
+    remplissage.pattern !== 'solid'
+  ) {
+    return null;
+  }
+  const argb = remplissage.fgColor?.argb;
+  if (typeof argb !== 'string') {
+    return null;
+  }
+  const hex = (argb.length === 8 ? argb.slice(2) : argb).toUpperCase();
+  return SURLIGNAGES[hex] ?? null;
 }
 
 function widthOf(worksheet: Worksheet, index: number): number {
@@ -128,7 +151,6 @@ async function createColumnsAndChoices(
   return nbChoix;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- utilisé à la Task 9.7
 async function insertRows(prisma: PrismaClient, lignes: readonly BuiltRow[]): Promise<void> {
   for (let debut = 0; debut < lignes.length; debut += LOT_INSERTION) {
     const lot = lignes.slice(debut, debut + LOT_INSERTION);
@@ -191,12 +213,150 @@ export async function importWorkbook(
   };
 }
 
-// Lecture des lignes ajoutée à la Task 9.7 ; stub provisoire pour cette tâche.
+interface CellsOutcome {
+  data: Record<string, string>;
+  formats: Record<string, { bg: string }>;
+  firstIsoDate: string | null;
+  offListValues: { key: string; value: string }[];
+  overflowIndices: number[];
+  empty: boolean;
+}
+
+function readRowCells(
+  worksheet: Worksheet,
+  rowNumber: number,
+  mapping: HeaderMapping,
+): CellsOutcome {
+  const ligne = worksheet.getRow(rowNumber);
+  const data: Record<string, string> = {};
+  const formats: Record<string, { bg: string }> = {};
+  const overflowIndices: number[] = [];
+  const overflowTextes: string[] = [];
+  let firstIsoDate: string | null = null;
+  let nbValeurs = 0;
+
+  for (let index = 0; index < mapping.keyByIndex.length; index++) {
+    const cellule = ligne.getCell(index + 1);
+    const valeur = normalizeCellValue(cellule.value);
+    if (valeur === null) {
+      continue;
+    }
+    nbValeurs++;
+    if (firstIsoDate === null && ISO_DATE.test(valeur)) {
+      firstIsoDate = valeur;
+    }
+
+    const cle = mapping.keyByIndex[index];
+    if (cle === null) {
+      overflowIndices.push(index);
+      overflowTextes.push(`${mapping.labelByIndex[index]}: ${valeur}`);
+      continue;
+    }
+
+    data[cle] = valeur;
+    const surlignage = highlightOf(cellule);
+    if (surlignage !== null) {
+      formats[cle] = { bg: surlignage };
+    }
+  }
+
+  if (overflowTextes.length > 0) {
+    const existant = data['commentaires_planif'];
+    const deverse = overflowTextes.join(' | ');
+    data['commentaires_planif'] = existant === undefined ? deverse : `${existant} | ${deverse}`;
+  }
+
+  const offListValues: { key: string; value: string }[] = [];
+  for (const key of SELECT_KEYS) {
+    const valeur = data[key];
+    if (valeur !== undefined && !allowedValues(key).has(valeur)) {
+      offListValues.push({ key, value: valeur });
+    }
+  }
+
+  return {
+    data,
+    formats,
+    firstIsoDate,
+    offListValues,
+    overflowIndices,
+    empty: nbValeurs === 0,
+  };
+}
+
+function monthOfRow(cells: CellsOutcome): string {
+  const candidats = [cells.data['date'], cells.data['impe'], cells.firstIsoDate];
+  for (const candidat of candidats) {
+    if (typeof candidat === 'string' && ISO_DATE.test(candidat)) {
+      return candidat.slice(0, 7);
+    }
+  }
+  return ARCHIVES_FALLBACK_MONTH;
+}
+
 async function importSheet(
-  _prisma: PrismaClient,
+  prisma: PrismaClient,
   worksheet: Worksheet,
   month: string | null,
   archived: boolean,
 ): Promise<SheetReport> {
-  return { sheet: worksheet.name, month, archived, imported: 0, ignored: 0, anomalies: [] };
+  const mapping = buildHeaderMap(headersOf(worksheet));
+  const lignes: BuiltRow[] = [];
+  const horsListe = new Map<string, number>();
+  const nonMappees = new Set<number>();
+  let ignorees = 0;
+
+  const derniereLigne = Math.min(worksheet.rowCount, MAX_LIGNES);
+  for (let numero = 2; numero <= derniereLigne; numero++) {
+    const cells = readRowCells(worksheet, numero, mapping);
+    if (cells.empty) {
+      ignorees++;
+      continue;
+    }
+
+    for (const index of cells.overflowIndices) {
+      nonMappees.add(index);
+    }
+    for (const hors of cells.offListValues) {
+      const cle = `${hors.key} ${hors.value}`;
+      horsListe.set(cle, (horsListe.get(cle) ?? 0) + 1);
+    }
+
+    lignes.push({
+      month: month ?? monthOfRow(cells),
+      position: lignes.length,
+      data: cells.data,
+      formats: cells.formats,
+      archived,
+    });
+  }
+
+  await insertRows(prisma, lignes);
+
+  const anomalies: string[] = [];
+  if (nonMappees.size > 0) {
+    const libelles = [...nonMappees]
+      .sort((a, b) => a - b)
+      .map((index) => mapping.labelByIndex[index]);
+    anomalies.push(
+      `colonnes hors périmètre reportées dans commentaires_planif : ${libelles.join(', ')}`,
+    );
+  }
+  for (const [cle, occurrences] of horsListe) {
+    const separateur = cle.indexOf(' ');
+    const colonne = cle.slice(0, separateur);
+    const valeur = cle.slice(separateur + 1);
+    anomalies.push(
+      `valeur « ${valeur} » hors liste pour la colonne ${colonne} (${occurrences} ligne(s)) — importée telle quelle`,
+    );
+  }
+
+  return {
+    sheet: worksheet.name,
+    month,
+    archived,
+    imported: lignes.length,
+    ignored: ignorees,
+    anomalies,
+  };
 }
