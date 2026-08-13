@@ -68,7 +68,7 @@ export default function ColonnesTab() {
     async (
       id: string,
       corps: Partial<Pick<ColumnDTO, 'label' | 'position' | 'width' | 'visible'>>,
-    ): Promise<void> => {
+    ): Promise<boolean> => {
       try {
         const misAJour = await apiFetch<ColumnDTO>(`/columns/${id}`, {
           method: 'PATCH',
@@ -78,11 +78,13 @@ export default function ColonnesTab() {
           trierParPosition(precedentes.map((c) => (c.id === misAJour.id ? misAJour : c))),
         );
         setErreur(null);
+        return true;
       } catch (err) {
         // charger() rechargent la liste réinitialise l'erreur à null en cas de succès :
         // on affiche donc le message après le rechargement pour qu'il ne soit pas effacé.
         await charger();
         setErreur(messageErreurApi(err));
+        return false;
       }
     },
     [charger],
@@ -155,8 +157,12 @@ export default function ColonnesTab() {
       position: rang,
     }));
     setColonnes(reordonnees);
-    await patchColonne(reordonnees[index].id, { position: index });
-    await charger();
+    const succes = await patchColonne(reordonnees[index].id, { position: index });
+    // Ne recharger que si le PATCH a réussi ; en cas d'échec, patchColonne gère déjà
+    // le rechargement et l'affichage du message d'erreur.
+    if (succes) {
+      await charger();
+    }
   };
 
   const confirmerSuppression = async (force: boolean): Promise<void> => {

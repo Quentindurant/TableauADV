@@ -287,6 +287,27 @@ describe('ColonnesTab — glisser-déposer', () => {
 
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it('en cas d\'echec du PATCH pendant le drop, le message d\'erreur reste visible', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce([STATUT, CLIENT])
+      .mockRejectedValueOnce({ status: 500, code: 'INTERNAL_ERROR', message: 'Erreur serveur' })
+      .mockResolvedValueOnce([STATUT, CLIENT]);
+
+    render(<ColonnesTab />);
+    await screen.findByText('CLIENT');
+
+    const lignes = screen.getAllByRole('row').slice(1);
+    const transfert = dataTransferFactice();
+    fireEvent.dragStart(lignes[1], { dataTransfer: transfert });
+    fireEvent.dragOver(lignes[0], { dataTransfer: transfert });
+    fireEvent.drop(lignes[0], { dataTransfer: transfert });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('Erreur serveur');
+    });
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
 });
 
 describe('ColonnesTab — suppression', () => {
