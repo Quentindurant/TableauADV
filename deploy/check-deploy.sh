@@ -77,6 +77,39 @@ check_ecosystem() {
   fi
 }
 
+check_vhost() {
+  local f="deploy/apache-vhost.conf"
+  expect_file "$f"
+  expect_grep "$f" '<VirtualHost \*:80>' "vhost : bloc HTTP *:80 présent"
+  expect_grep "$f" '<VirtualHost \*:443>' "vhost : bloc HTTPS *:443 présent"
+  expect_grep "$f" 'RewriteRule .*https://%\{SERVER_NAME\}.*\[R=301' \
+    "vhost : redirection 301 du port 80 vers HTTPS"
+  expect_grep "$f" 'acme-challenge' \
+    "vhost : le challenge certbot HTTP-01 échappe à la redirection"
+  expect_grep "$f" '^[[:space:]]*SSLEngine on' "vhost : SSLEngine activé"
+  expect_grep "$f" 'SSLCertificateFile[[:space:]]+/etc/letsencrypt/live/' \
+    "vhost : chemin certbot du certificat documenté"
+  expect_grep "$f" 'SSLCertificateKeyFile[[:space:]]+/etc/letsencrypt/live/' \
+    "vhost : chemin certbot de la clé documenté"
+  expect_grep "$f" '^[[:space:]]*ProxyPreserveHost On' "vhost : ProxyPreserveHost On"
+  expect_grep "$f" 'RequestHeader set X-Forwarded-Proto "https"' \
+    "vhost : en-tête X-Forwarded-Proto transmis à l'API"
+  expect_grep "$f" 'RewriteCond %\{HTTP:Upgrade\} =websocket' \
+    "vhost : condition de bascule WebSocket"
+  expect_grep "$f" 'RewriteRule .*ws://127\.0\.0\.1:3001/socket\.io/.*\[P' \
+    "vhost : tunnel WebSocket vers ws://127.0.0.1:3001/socket.io/ (mod_proxy_wstunnel)"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/socket\.io/[[:space:]]+http://127\.0\.0\.1:3001/socket\.io/' \
+    "vhost : polling HTTP Socket.IO vers :3001"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/api[[:space:]]+http://127\.0\.0\.1:3001/api' \
+    "vhost : /api vers :3001"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3000/' \
+    "vhost : / vers Next.js :3000"
+  expect_grep "$f" 'ProxyPassReverse[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3000/' \
+    "vhost : ProxyPassReverse sur la racine"
+  expect_grep "$f" 'a2enmod .*proxy_wstunnel' \
+    "vhost : commande a2enmod rappelée en commentaire"
+}
+
 run_check() {
   local name="$1"
   printf '\n--- %s ---\n' "$name"
