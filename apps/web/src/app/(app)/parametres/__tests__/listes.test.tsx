@@ -190,3 +190,136 @@ describe('ListesTab — sélection, pastilles et couleurs', () => {
     expect(screen.queryByTestId('pastille-ch3')).not.toBeInTheDocument();
   });
 });
+
+function dataTransferFactice(): DataTransfer {
+  const donnees = new Map<string, string>();
+  return {
+    effectAllowed: 'none',
+    dropEffect: 'none',
+    setData: (type: string, valeur: string) => {
+      donnees.set(type, valeur);
+    },
+    getData: (type: string) => donnees.get(type) ?? '',
+  } as unknown as DataTransfer;
+}
+
+describe('ListesTab — ajout, renommage, archivage, ordre', () => {
+  it('ajoute une valeur via POST /columns/:id/choices', async () => {
+    const utilisateur = userEvent.setup();
+    const cree = choix({ id: 'ch9', label: 'A RAPPELER', position: 2, bgColor: '#00ff00', textColor: '#000000' });
+    apiFetchMock.mockResolvedValueOnce([COLONNE_STATUT]).mockResolvedValueOnce(cree);
+
+    render(<ListesTab />);
+    await screen.findByTestId('pastille-ch1');
+
+    await utilisateur.type(screen.getByLabelText('Nouvelle valeur'), 'A RAPPELER');
+    fireEvent.change(screen.getByLabelText('Couleur de fond de la nouvelle valeur'), {
+      target: { value: '#00ff00' },
+    });
+    await utilisateur.click(screen.getByRole('button', { name: 'Ajouter la valeur' }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/columns/col-statut/choices', {
+        method: 'POST',
+        body: JSON.stringify({
+          label: 'A RAPPELER',
+          bgColor: '#00ff00',
+          textColor: '#000000',
+          bold: false,
+        }),
+      }),
+    );
+    expect(await screen.findByTestId('pastille-ch9')).toHaveTextContent('A RAPPELER');
+    expect(screen.getByLabelText('Nouvelle valeur')).toHaveValue('');
+  });
+
+  it('refuse un doublon (422) avec un message français', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockRejectedValueOnce({ status: 422, code: 'VALIDATION_FAILED', message: 'doublon' });
+
+    render(<ListesTab />);
+    await screen.findByTestId('pastille-ch1');
+
+    await utilisateur.type(screen.getByLabelText('Nouvelle valeur'), 'NEW');
+    await utilisateur.click(screen.getByRole('button', { name: 'Ajouter la valeur' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Données invalides : vérifiez les champs saisis.',
+    );
+  });
+
+  it('renomme un choix et annonce la propagation aux lignes', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockResolvedValueOnce({ ...NEW, label: 'NOUVEAU' });
+
+    render(<ListesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Renommer le choix NEW' }));
+
+    const champ = screen.getByLabelText('Nouveau libellé de NEW');
+    await utilisateur.clear(champ);
+    await utilisateur.type(champ, 'NOUVEAU{Enter}');
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch1', {
+        method: 'PATCH',
+        body: JSON.stringify({ label: 'NOUVEAU' }),
+      }),
+    );
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Renommage propagé aux lignes existantes.',
+    );
+    expect(screen.getByTestId('pastille-ch1')).toHaveTextContent('NOUVEAU');
+  });
+
+  it('archive puis désarchive un choix', async () => {
+    const utilisateur = userEvent.setup();
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockResolvedValueOnce({ ...NEW, archived: true })
+      .mockResolvedValueOnce({ ...NEW, archived: false });
+
+    render(<ListesTab />);
+    await utilisateur.click(await screen.findByRole('button', { name: 'Archiver NEW' }));
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch1', {
+        method: 'PATCH',
+        body: JSON.stringify({ archived: true }),
+      }),
+    );
+
+    await utilisateur.click(await screen.findByRole('button', { name: 'Désarchiver NEW' }));
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch1', {
+        method: 'PATCH',
+        body: JSON.stringify({ archived: false }),
+      }),
+    );
+  });
+
+  it('réordonne par glisser-déposer et envoie PATCH { position }', async () => {
+    apiFetchMock
+      .mockResolvedValueOnce([COLONNE_STATUT])
+      .mockResolvedValueOnce({ ...CLOTUREE, position: 0 });
+
+    render(<ListesTab />);
+    await screen.findByTestId('pastille-ch1');
+
+    const elements = screen.getAllByTestId(/^choix-/);
+    const transfert = dataTransferFactice();
+    fireEvent.dragStart(elements[1], { dataTransfer: transfert });
+    fireEvent.dragOver(elements[0], { dataTransfer: transfert });
+    fireEvent.drop(elements[0], { dataTransfer: transfert });
+
+    await waitFor(() =>
+      expect(apiFetchMock).toHaveBeenLastCalledWith('/choices/ch2', {
+        method: 'PATCH',
+        body: JSON.stringify({ position: 0 }),
+      }),
+    );
+  });
+});

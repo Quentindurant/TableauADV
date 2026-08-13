@@ -1,10 +1,10 @@
 'use client';
 
 import type { ChoiceDTO, ColumnDTO } from '@suivi/shared';
-import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useState, type CSSProperties, type DragEvent, type FormEvent } from 'react';
 
 import { apiFetch } from '../../../lib/api';
-import { trierParPosition } from './colonnes';
+import { deplacerElement, trierParPosition } from './colonnes';
 import { messageErreurApi } from './messages';
 
 export const FOND_DEFAUT = '#ffffff';
@@ -39,6 +39,13 @@ export default function ListesTab() {
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
+  const [nouveauLabel, setNouveauLabel] = useState('');
+  const [nouveauFond, setNouveauFond] = useState(FOND_DEFAUT);
+  const [nouveauTexte, setNouveauTexte] = useState(TEXTE_DEFAUT);
+  const [nouveauGras, setNouveauGras] = useState(false);
+  const [editionId, setEditionId] = useState<string | null>(null);
+  const [editionLabel, setEditionLabel] = useState('');
+  const [indexGlisse, setIndexGlisse] = useState<number | null>(null);
 
   const charger = useCallback(async (): Promise<void> => {
     setChargement(true);
@@ -103,6 +110,93 @@ export default function ListesTab() {
     }
   };
 
+  const ajouterValeur = async (evenement: FormEvent<HTMLFormElement>): Promise<void> => {
+    evenement.preventDefault();
+    const label = nouveauLabel.trim();
+    if (label === '') {
+      setErreur('Le libellé de la valeur est obligatoire.');
+      return;
+    }
+    if (colonneId === '') {
+      setErreur('Sélectionnez d’abord une colonne de type liste.');
+      return;
+    }
+    try {
+      const cree = await apiFetch<ChoiceDTO>(`/columns/${colonneId}/choices`, {
+        method: 'POST',
+        body: JSON.stringify({
+          label,
+          bgColor: nouveauFond,
+          textColor: nouveauTexte,
+          bold: nouveauGras,
+        }),
+      });
+      setColonnes((precedentes) =>
+        precedentes.map((colonne) =>
+          colonne.id === colonneId ? { ...colonne, choices: [...colonne.choices, cree] } : colonne,
+        ),
+      );
+      setNouveauLabel('');
+      setNouveauFond(FOND_DEFAUT);
+      setNouveauTexte(TEXTE_DEFAUT);
+      setNouveauGras(false);
+      setErreur(null);
+      setInfo(null);
+    } catch (err) {
+      setErreur(messageErreurApi(err));
+    }
+  };
+
+  const demarrerEdition = (element: ChoiceDTO): void => {
+    setEditionId(element.id);
+    setEditionLabel(element.label);
+    setInfo(null);
+  };
+
+  const annulerEdition = (): void => {
+    setEditionId(null);
+    setEditionLabel('');
+  };
+
+  const validerEdition = async (element: ChoiceDTO): Promise<void> => {
+    const label = editionLabel.trim();
+    annulerEdition();
+    if (label === '' || label === element.label) {
+      return;
+    }
+    const misAJour = await enregistrerChoix(element.id, { label });
+    if (misAJour !== null) {
+      setInfo('Renommage propagé aux lignes existantes.');
+    }
+  };
+
+  const basculerArchivage = async (element: ChoiceDTO): Promise<void> => {
+    await enregistrerChoix(element.id, { archived: !element.archived });
+  };
+
+  const commencerGlisse = (index: number) => (evenement: DragEvent<HTMLLIElement>): void => {
+    setIndexGlisse(index);
+    evenement.dataTransfer.effectAllowed = 'move';
+    evenement.dataTransfer.setData('text/plain', String(index));
+  };
+
+  const survolerGlisse = (evenement: DragEvent<HTMLLIElement>): void => {
+    evenement.preventDefault();
+    evenement.dataTransfer.dropEffect = 'move';
+  };
+
+  const deposer = (index: number) => async (evenement: DragEvent<HTMLLIElement>): Promise<void> => {
+    evenement.preventDefault();
+    const depuis = indexGlisse ?? Number.parseInt(evenement.dataTransfer.getData('text/plain'), 10);
+    setIndexGlisse(null);
+    if (Number.isNaN(depuis) || depuis === index) {
+      return;
+    }
+    const reordonnes = deplacerElement(choix, depuis, index);
+    setChoix(reordonnes.map((element, rang) => ({ ...element, position: rang })));
+    await enregistrerChoix(reordonnes[index].id, { position: index });
+  };
+
   return (
     <section aria-label="Listes et couleurs">
       {erreur !== null && <p role="alert">{erreur}</p>}
@@ -126,11 +220,63 @@ export default function ListesTab() {
       </select>
 
       <ul>
-        {choix.map((element) => (
-          <li key={element.id} data-testid={`choix-${element.id}`}>
+        {choix.map((element, index) => (
+          <li
+            key={element.id}
+            data-testid={`choix-${element.id}`}
+            draggable
+            onDragStart={commencerGlisse(index)}
+            onDragOver={survolerGlisse}
+            onDrop={(evenement) => {
+              void deposer(index)(evenement);
+            }}
+            onDragEnd={() => setIndexGlisse(null)}
+          >
+            <span aria-hidden="true" title="Glisser pour réordonner">
+              ⠿
+            </span>
             <span data-testid={`pastille-${element.id}`} style={stylePastille(element)}>
               {element.label}
             </span>
+
+            {editionId === element.id ? (
+              <>
+                <input
+                  aria-label={`Nouveau libellé de ${element.label}`}
+                  value={editionLabel}
+                  autoFocus
+                  onChange={(evenement) => setEditionLabel(evenement.target.value)}
+                  onKeyDown={(evenement) => {
+                    if (evenement.key === 'Enter') {
+                      evenement.preventDefault();
+                      void validerEdition(element);
+                    }
+                    if (evenement.key === 'Escape') {
+                      evenement.preventDefault();
+                      annulerEdition();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  aria-label={`Valider le libellé de ${element.label}`}
+                  onClick={() => {
+                    void validerEdition(element);
+                  }}
+                >
+                  ✓
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                aria-label={`Renommer le choix ${element.label}`}
+                onClick={() => demarrerEdition(element)}
+              >
+                Renommer
+              </button>
+            )}
+
             <input
               type="color"
               aria-label={`Couleur de fond de ${element.label}`}
@@ -162,10 +308,62 @@ export default function ListesTab() {
               />
               Gras
             </label>
+
+            <button
+              type="button"
+              aria-label={`${element.archived ? 'Désarchiver' : 'Archiver'} ${element.label}`}
+              onClick={() => {
+                void basculerArchivage(element);
+              }}
+            >
+              {element.archived ? 'Désarchiver' : 'Archiver'}
+            </button>
             {element.archived && <em> (archivée)</em>}
           </li>
         ))}
       </ul>
+
+      <form
+        onSubmit={(evenement) => {
+          void ajouterValeur(evenement);
+        }}
+      >
+        <h3>Ajouter une valeur</h3>
+        <label htmlFor="nouvelle-valeur-label">Nouvelle valeur</label>
+        <input
+          id="nouvelle-valeur-label"
+          value={nouveauLabel}
+          onChange={(evenement) => setNouveauLabel(evenement.target.value)}
+        />
+        <input
+          type="color"
+          aria-label="Couleur de fond de la nouvelle valeur"
+          value={nouveauFond}
+          onChange={(evenement) => setNouveauFond(evenement.target.value)}
+        />
+        <input
+          type="color"
+          aria-label="Couleur du texte de la nouvelle valeur"
+          value={nouveauTexte}
+          onChange={(evenement) => setNouveauTexte(evenement.target.value)}
+        />
+        <label>
+          <input
+            type="checkbox"
+            aria-label="Gras pour la nouvelle valeur"
+            checked={nouveauGras}
+            onChange={(evenement) => setNouveauGras(evenement.target.checked)}
+          />
+          Gras
+        </label>
+        <span
+          data-testid="apercu-nouvelle-valeur"
+          style={stylePastille({ bgColor: nouveauFond, textColor: nouveauTexte, bold: nouveauGras })}
+        >
+          {nouveauLabel === '' ? 'Aperçu' : nouveauLabel}
+        </span>
+        <button type="submit">Ajouter la valeur</button>
+      </form>
     </section>
   );
 }
