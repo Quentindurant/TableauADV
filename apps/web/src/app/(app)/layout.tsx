@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { UserDTO } from '@suivi/shared';
 import { AppHeader } from '../../components/AppHeader';
+import ConnectionBanner from '../../components/grid/ConnectionBanner';
 import { serverApiBaseUrl } from '../../lib/api';
 
 /**
@@ -43,6 +44,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       }}
     >
       <AppHeader user={user} />
+      <ConnectionBanner />
       <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
         {children}
       </main>

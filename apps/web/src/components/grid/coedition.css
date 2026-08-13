@@ -1,0 +1,39 @@
+/* Cellule pointée par un collègue : bordure 2px à sa couleur + étiquette. */
+.coedition-focus {
+  position: relative;
+  box-shadow: inset 0 0 0 2px var(--coedition-color, #888);
+}
+
+.coedition-focus::after {
+  content: var(--coedition-label, "");
+  position: absolute;
+  top: -15px;
+  left: -2px;
+  z-index: 5;
+  padding: 0 4px;
+  border-radius: 2px;
+  background: var(--coedition-color, #888);
+  color: #fff;
+  font-size: 10px;
+  line-height: 15px;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
+}
+
+/* Cellule en cours d'édition par un collègue : hachures + curseur interdit. */
+.coedition-locked {
+  cursor: not-allowed;
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 4px,
+    var(--coedition-color, #888) 4px,
+    var(--coedition-color, #888) 6px
+  );
+}
+
+/* L'étiquette de focus doit pouvoir déborder de la cellule. */
+.ag-theme-quartz .ag-cell.coedition-focus {
+  overflow: visible;
+}

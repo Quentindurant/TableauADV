@@ -1,38 +1,36 @@
 'use client';
 
+import { initialsOf } from '../../lib/coedition';
 import { useAppStore } from '../../lib/store';
+import './presence-bar.css';
 
 /**
- * Placeholder : affiche uniquement l'utilisateur courant.
- * La Feature 7 (temps réel front) le remplace par la vraie liste de présence
- * alimentée par l'événement Socket.IO `presence`.
+ * Avatars des collègues présents dans la room de la vue courante.
+ * L'utilisateur connecté n'y figure pas (filtré par le store).
  */
 export function PresenceBar() {
-  const user = useAppStore((state) => state.user);
+  const presence = useAppStore((state) => state.presence);
 
   return (
-    <div
-      data-testid="presence-bar"
-      style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}
-    >
-      {user ? (
-        <span
-          title={user.displayName}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 26,
-            height: 26,
-            borderRadius: '50%',
-            background: user.cursorColor,
-            color: '#FFFFFF',
-            fontWeight: 700,
-          }}
-        >
-          {user.displayName.slice(0, 1).toLocaleUpperCase('fr-FR')}
-        </span>
-      ) : null}
+    <div className="presence-bar" data-testid="presence-bar" aria-label="Collègues connectés">
+      {presence.length === 0 ? (
+        <span className="presence-empty">Seul(e) sur cette vue</span>
+      ) : (
+        presence.map((user) => (
+          <span
+            key={user.id}
+            className="presence-avatar"
+            data-testid={`presence-${user.id}`}
+            title={user.displayName}
+            aria-label={user.displayName}
+            style={{ backgroundColor: user.cursorColor }}
+          >
+            {initialsOf(user.displayName)}
+          </span>
+        ))
+      )}
     </div>
   );
 }
+
+export default PresenceBar;

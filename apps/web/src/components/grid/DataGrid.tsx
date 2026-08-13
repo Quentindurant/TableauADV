@@ -6,10 +6,12 @@ import {
   AllCommunityModule,
   ModuleRegistry,
   themeQuartz,
+  type CellClassParams,
   type CellClickedEvent,
   type CellContextMenuEvent,
   type CellKeyDownEvent,
   type CellValueChangedEvent,
+  type ColDef,
   type ColumnMovedEvent,
   type ColumnResizedEvent,
   type GetRowIdParams,
@@ -21,11 +23,13 @@ import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
-import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
+import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
 import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { RowContextMenu } from './RowContextMenu';
 import { RowHistoryPanel } from './RowHistoryPanel';
+import { useCoedition } from './useCoedition';
+import './coedition.css';
 
 // AG Grid v33+ : les modules Community doivent être enregistrés explicitement.
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -65,15 +69,51 @@ export function DataGrid({ reload }: DataGridProps) {
   const rows = useAppStore((state) => state.rows);
   const months = useAppStore((state) => state.months);
   const toast = useAppStore((state) => state.toast);
+  const view = useAppStore((state) => state.view);
+  const monthCourant = useAppStore((state) => state.monthCourant);
 
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [events, setEvents] = useState<RowEventDTO[]>([]);
+  // État (pas juste une ref) : la co-édition a besoin d'être notifiée du
+  // GridApi dès qu'il existe, pour pouvoir rafraîchir les cellules et
+  // interrompre une édition refusée.
+  const [gridApi, setGridApi] = useState<GridApi<RowDTO> | null>(null);
 
-  const columnDefs = useMemo(
-    () => buildColumnDefs(columns, choicesByColumnKey),
-    [columns, choicesByColumnKey],
+  const coedition = useCoedition(view, monthCourant, gridApi);
+
+  const columnDefs = useMemo(() => {
+    const base = buildColumnDefs(columns, choicesByColumnKey);
+    // La Feature 6 fixe déjà `editable: true` et un `cellStyle` (surlignage
+    // manuel) sur CHAQUE colDef : en AG Grid, ces propriétés de colDef
+    // l'emportent toujours sur celles de `defaultColDef`, quelle que soit
+    // leur valeur. Sans cette composition, `defaultColDef.editable` et
+    // `defaultColDef.cellStyle` (ci-dessous) ne seraient donc jamais
+    // consultés et la co-édition n'aurait aucun effet visuel ni de verrou.
+    return base.map((def: ColDef<RowDTO>) => {
+      const baseCellStyle = def.cellStyle;
+      return {
+        ...def,
+        editable: coedition.isCellEditable,
+        cellStyle: (params: CellClassParams<RowDTO>) => {
+          const own =
+            typeof baseCellStyle === 'function' ? (baseCellStyle(params) ?? {}) : (baseCellStyle ?? {});
+          return { ...own, ...(coedition.cellStyle(params) ?? {}) };
+        },
+      };
+    });
+  }, [columns, choicesByColumnKey, coedition.isCellEditable, coedition.cellStyle]);
+
+  const defaultColDef = useMemo(
+    () => ({
+      resizable: true,
+      sortable: false,
+      editable: coedition.isCellEditable,
+      cellClassRules: coedition.cellClassRules,
+      cellStyle: coedition.cellStyle,
+    }),
+    [coedition.isCellEditable, coedition.cellClassRules, coedition.cellStyle],
   );
 
   const deps = useMemo(
@@ -86,7 +126,6 @@ export function DataGrid({ reload }: DataGridProps) {
     [reload],
   );
 
-  const gridApiRef = useRef<GridApi<RowDTO> | null>(null);
   // Sélection verticale suivie à la main (la sélection de plage est Enterprise) :
   // clic simple = 1 cellule ; Maj+clic dans la MÊME colonne = étend depuis l'ancre.
   const selectionRef = useRef<{ colKey: string; anchor: number; indexes: number[] }>({
@@ -96,7 +135,7 @@ export function DataGrid({ reload }: DataGridProps) {
   });
 
   const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
-    gridApiRef.current = event.api;
+    setGridApi(event.api);
   }, []);
 
   const onCellClicked = useCallback((event: CellClickedEvent<RowDTO>) => {
@@ -210,14 +249,26 @@ export function DataGrid({ reload }: DataGridProps) {
   );
 
   // --- Édition d'une cellule ------------------------------------------------
+  // Rollback fin par clé (Feature 7) : `applyCellEdit` gère lui-même
+  // l'optimisme, la confirmation serveur et le rollback ciblé sur 409/erreur,
+  // sans recharger tout le mois (voir cellCommit.ts).
+  const flashCell = useCallback(
+    (rowId: string, colKey: string) => {
+      const node = gridApi?.getRowNode(rowId);
+      if (node) {
+        gridApi?.flashCells({ rowNodes: [node], columns: [colKey] });
+      }
+    },
+    [gridApi],
+  );
+
   const onCellValueChanged = useCallback(
     (event: CellValueChangedEvent<RowDTO, CellValue>) => {
+      const rowId = (event.data as RowDTO).id;
       const colKey = event.column.getColId();
-      const row = useAppStore.getState().rows.find((item) => item.id === event.data.id);
-      if (!row || !colKey) return;
-      void commitCellEdit(row, colKey, event.data.data[colKey] ?? null, deps);
+      void applyCellEdit(rowId, colKey, event.newValue as CellValue, { flashCell });
     },
-    [deps],
+    [flashCell],
   );
 
   // --- Réordonnancement par glisser-déposer --------------------------------
@@ -288,7 +339,7 @@ export function DataGrid({ reload }: DataGridProps) {
           rowData={rows}
           columnDefs={columnDefs}
           getRowId={(params: GetRowIdParams<RowDTO>) => params.data.id}
-          defaultColDef={{ resizable: true, editable: true, sortable: false }}
+          defaultColDef={defaultColDef}
           singleClickEdit={false}
           stopEditingWhenCellsLoseFocus
           rowDragManaged
@@ -303,6 +354,9 @@ export function DataGrid({ reload }: DataGridProps) {
           onRowDragEnd={onRowDragEnd}
           onCellClicked={onCellClicked}
           onCellKeyDown={onCellKeyDown}
+          onCellFocused={coedition.onCellFocused}
+          onCellEditingStarted={coedition.onCellEditingStarted}
+          onCellEditingStopped={coedition.onCellEditingStopped}
           onCellContextMenu={onCellContextMenu}
         />
       </div>
