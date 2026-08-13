@@ -114,6 +114,29 @@ describe('resyncView', () => {
     expect(redirectToLogin).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().toast).toBeNull();
   });
+
+  it('ignore la réponse si la vue affichée a changé pendant le rechargement (garde anti-obsolescence)', async () => {
+    let resolveColumns!: (value: ColumnDTO[]) => void;
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') {
+        return new Promise<ColumnDTO[]>((resolve) => {
+          resolveColumns = resolve;
+        });
+      }
+      if (path === '/rows?month=2026-08') return [rowFromServer] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
+
+    const pending = resyncView('month', '2026-08');
+    // L'utilisateur bascule vers un autre mois AVANT que la réponse réseau
+    // (lente) n'arrive : elle ne doit plus jamais atteindre le store.
+    useAppStore.setState({ view: 'archives', monthCourant: '2026-09' });
+    resolveColumns([column]);
+    await pending;
+
+    expect(useAppStore.getState().columns).toEqual([]);
+    expect(useAppStore.getState().rows).toEqual([]);
+  });
 });
 
 describe('refreshConfig', () => {

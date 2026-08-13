@@ -48,6 +48,14 @@ export async function resyncView(
       apiFetch<ColumnDTO[]>('/columns'),
       apiFetch<RowDTO[]>(rowsQueryForView(view, month)),
     ]);
+    // Garde anti-obsolescence : si la vue affichée a changé pendant l'attente
+    // réseau (nouveau mois sélectionné, bascule vers/depuis les archives...),
+    // ces données ne correspondent plus à rien d'affiché — les appliquer
+    // écraserait la vue désormais courante avec celles d'une autre vue.
+    const current = useAppStore.getState();
+    if (current.view !== view || current.monthCourant !== month) {
+      return;
+    }
     useAppStore.getState().setColumns(columns);
     useAppStore.getState().setRows(rows);
   } catch (error) {
