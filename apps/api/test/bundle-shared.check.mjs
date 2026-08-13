@@ -8,6 +8,12 @@
  * Ce script lit dist/main.js APRÈS `nest build` et vérifie la présence des
  * symboles propres à shared. Il échoue avec exit code 1 si shared est absent.
  *
+ * Branché automatiquement en `postbuild` (apps/api/package.json) : il tourne
+ * donc après CHAQUE `nest build` (dev, CI, déploiement — cf. deploy/install.md
+ * §7 et §13), sans alourdir la boucle rapide `pnpm test`/`test:unit`/`test:e2e`
+ * qui ne construit rien. Relance manuelle possible via `pnpm test:bundle`
+ * (suppose un dist/main.js déjà construit) ou :
+ *
  * Usage (depuis apps/api/) :
  *   pnpm exec nest build && node test/bundle-shared.check.mjs
  *

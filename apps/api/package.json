@@ -5,10 +5,12 @@
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
+    "postbuild": "node test/bundle-shared.check.mjs",
     "start": "node dist/main.js",
     "test": "jest --passWithNoTests && jest --config ./test/jest-e2e.json",
     "test:unit": "jest --passWithNoTests",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:bundle": "node test/bundle-shared.check.mjs",
     "seed:e2e": "ts-node --transpile-only prisma/seed-e2e.ts",
     "import:xlsx": "ts-node --transpile-only src/import/run-import.ts"
   },
