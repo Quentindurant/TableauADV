@@ -31,6 +31,9 @@ describe('importWorkbook — colonnes, choix et purge (e2e)', () => {
   }, 120000);
 
   afterAll(async () => {
+    // Supprime les lignes synthétiques importées par les tests.
+    await prisma.rowEvent.deleteMany();
+    await prisma.row.deleteMany();
     // Restaure l'état seedé (16 colonnes + choix) pour les suites voisines
     // et retire l'utilisateur témoin créé par le test ci-dessous.
     await seed(prisma);

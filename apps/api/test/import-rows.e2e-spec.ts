@@ -26,6 +26,9 @@ describe('importWorkbook — lignes (e2e)', () => {
   }, 120000);
 
   afterAll(async () => {
+    // Supprime les lignes synthétiques importées par le test.
+    await prisma.rowEvent.deleteMany();
+    await prisma.row.deleteMany();
     // Restaure l'état seedé (16 colonnes + choix) pour les suites voisines.
     await seed(prisma);
     await prisma.$disconnect();
