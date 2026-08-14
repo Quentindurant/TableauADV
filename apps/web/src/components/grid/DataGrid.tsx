@@ -34,21 +34,32 @@ import './coedition.css';
 // AG Grid v33+ : les modules Community doivent être enregistrés explicitement.
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-/** Thème quartz personnalisé, clair, proche du rendu du classeur d'origine. */
+/**
+ * Thème quartz personnalisé, aux tokens du template GC (voir globals.css).
+ * Seul le CHROME de la grille est concerné : les pastilles de statut et le
+ * surlignage manuel gardent leurs couleurs métier, appliquées par colonne.
+ *
+ * Les valeurs sont lues dans les variables CSS pour rester alignées sur la
+ * source unique de tokens ; le repli couvre le rendu avant hydratation.
+ */
 export const suiviTheme = themeQuartz.withParams({
-  accentColor: '#2772A4',
-  backgroundColor: '#FFFFFF',
-  foregroundColor: '#1B1B1B',
-  borderColor: '#D8DEE4',
-  headerBackgroundColor: '#EDF1F5',
-  headerTextColor: '#1B1B1B',
+  accentColor: 'var(--gc-accent, #F09048)',
+  backgroundColor: 'var(--gc-surface, #FFFFFF)',
+  foregroundColor: 'var(--gc-petrol-soft, #33474A)',
+  borderColor: 'var(--gc-border, #E4EAE8)',
+  headerBackgroundColor: 'var(--gc-surface-alt, #F1F5F3)',
+  headerTextColor: 'var(--gc-muted-soft, #8FA09C)',
   headerFontWeight: 700,
-  oddRowBackgroundColor: '#FBFCFD',
-  fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  headerFontSize: 10.5,
+  oddRowBackgroundColor: 'var(--gc-surface-hover, #F5FAF8)',
+  rowHoverColor: 'var(--gc-surface-hover, #F5FAF8)',
+  selectedRowBackgroundColor: 'var(--gc-surface-sunken, #E9EFED)',
+  // La virgule évite qu'AG Grid ne cite la valeur comme un nom de police.
+  fontFamily: 'var(--gc-font), sans-serif',
   fontSize: 13,
-  rowHeight: 28,
-  headerHeight: 32,
-  cellHorizontalPadding: 6,
+  rowHeight: 32,
+  headerHeight: 34,
+  cellHorizontalPadding: 10,
 });
 
 interface MenuState {
@@ -420,12 +431,13 @@ export function DataGrid({ reload }: DataGridProps) {
             bottom: 16,
             zIndex: 1200,
             maxWidth: 420,
-            padding: '10px 14px',
-            borderRadius: 4,
-            color: '#FFFFFF',
-            background: toast.kind === 'error' ? '#C0392B' : '#2772A4',
-            boxShadow: '0 6px 18px rgba(0,0,0,0.2)',
+            padding: '11px 16px',
+            borderRadius: 'var(--gc-radius)',
+            color: 'var(--gc-on-petrol)',
+            background: toast.kind === 'error' ? 'var(--gc-danger)' : 'var(--gc-petrol)',
+            boxShadow: 'var(--gc-shadow-lg)',
             fontSize: 13,
+            fontWeight: 600,
           }}
         >
           {toast.message}

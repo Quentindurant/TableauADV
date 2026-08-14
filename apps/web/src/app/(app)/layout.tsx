@@ -40,7 +40,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        fontFamily: 'system-ui, sans-serif',
+        background: 'var(--gc-surface)',
       }}
     >
       <AppHeader user={user} />

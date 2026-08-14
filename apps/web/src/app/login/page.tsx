@@ -31,28 +31,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, sans-serif',
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          width: '20rem',
-          padding: '2rem',
-          border: '1px solid #d5d8dc',
-          borderRadius: '0.5rem',
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: '1.25rem' }}>Suivi commandes</h1>
+    <main className="gc-login">
+      <form onSubmit={handleSubmit} className="gc-login__form">
+        <span className="gc-login__eyebrow">Groupe GC</span>
+        <h1 className="gc-login__title">Suivi commandes</h1>
 
         <label htmlFor="email">Adresse e-mail</label>
         <input
@@ -77,12 +59,12 @@ export default function LoginPage() {
         />
 
         {error !== null && (
-          <p role="alert" style={{ color: '#c0392b', margin: 0 }}>
+          <p role="alert" className="gc-login__error">
             {error}
           </p>
         )}
 
-        <button type="submit" disabled={pending}>
+        <button type="submit" className="gc-login__submit" disabled={pending}>
           {pending ? 'Connexion…' : 'Se connecter'}
         </button>
       </form>

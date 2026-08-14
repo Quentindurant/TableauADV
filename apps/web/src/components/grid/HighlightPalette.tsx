@@ -14,7 +14,7 @@ export interface HighlightPaletteProps {
 
 export function HighlightPalette({ onPick }: HighlightPaletteProps) {
   return (
-    <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '2px 8px' }}>
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '4px 10px' }}>
       {HIGHLIGHT_COLORS.map((color) => (
         <button
           key={color.value}
@@ -26,8 +26,10 @@ export function HighlightPalette({ onPick }: HighlightPaletteProps) {
           style={{
             width: 18,
             height: 18,
-            borderRadius: 3,
-            border: '1px solid #99A3AD',
+            padding: 0,
+            borderRadius: '50%',
+            border: '1px solid var(--gc-border)',
+            // `background` = couleur MÉTIER du surlignage, jamais un token.
             background: color.value,
             cursor: 'pointer',
           }}
@@ -38,12 +40,13 @@ export function HighlightPalette({ onPick }: HighlightPaletteProps) {
         data-testid="highlight-clear"
         onClick={() => onPick(null)}
         style={{
-          border: '1px solid #99A3AD',
-          borderRadius: 3,
-          background: '#FFFFFF',
+          border: '1px solid var(--gc-border)',
+          borderRadius: 'var(--gc-radius-pill)',
+          background: 'var(--gc-surface)',
+          color: 'var(--gc-muted)',
           cursor: 'pointer',
           fontSize: 12,
-          padding: '1px 6px',
+          padding: '2px 10px',
         }}
       >
         Effacer

@@ -27,10 +27,13 @@ const itemStyle: React.CSSProperties = {
   width: '100%',
   textAlign: 'left',
   border: 'none',
+  borderRadius: 'var(--gc-radius-sm)',
   background: 'transparent',
+  color: 'var(--gc-petrol)',
   cursor: 'pointer',
-  padding: '5px 10px',
+  padding: '6px 10px',
   font: 'inherit',
+  fontWeight: 600,
 };
 
 export function RowContextMenu({
@@ -82,11 +85,11 @@ export function RowContextMenu({
         left: x,
         zIndex: 1000,
         minWidth: 230,
-        background: '#FFFFFF',
-        border: '1px solid #D8DEE4',
-        borderRadius: 4,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-        padding: '4px 0',
+        background: 'var(--gc-surface)',
+        border: '1px solid var(--gc-border)',
+        borderRadius: 'var(--gc-radius)',
+        boxShadow: 'var(--gc-shadow-md)',
+        padding: 5,
         fontSize: 13,
       }}
     >
@@ -97,7 +100,7 @@ export function RowContextMenu({
         Insérer une ligne en-dessous
       </button>
 
-      <hr style={{ border: 0, borderTop: '1px solid #EDF1F5', margin: '4px 0' }} />
+      <hr style={{ border: 0, borderTop: '1px solid var(--gc-border-soft)', margin: '5px 0' }} />
 
       <button
         type="button"
@@ -135,15 +138,24 @@ export function RowContextMenu({
       <button
         type="button"
         data-testid="menu-delete"
-        style={{ ...itemStyle, color: '#C0392B' }}
+        style={{ ...itemStyle, color: 'var(--gc-danger)' }}
         onClick={askDelete}
       >
         Supprimer la ligne
       </button>
 
-      <hr style={{ border: 0, borderTop: '1px solid #EDF1F5', margin: '4px 0' }} />
+      <hr style={{ border: 0, borderTop: '1px solid var(--gc-border-soft)', margin: '5px 0' }} />
 
-      <div style={{ padding: '2px 10px 0', color: '#6B7785', fontSize: 12 }}>
+      <div
+        style={{
+          padding: '2px 10px 0',
+          color: 'var(--gc-muted)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
         Surligner la colonne « {colKey} »
       </div>
       <HighlightPalette onPick={(color) => run(() => onHighlight(color))} />

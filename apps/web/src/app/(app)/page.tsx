@@ -94,24 +94,17 @@ export default function MoisPage() {
       {ready ? (
         <DataGrid reload={reload} />
       ) : (
-        <p data-testid="grid-loading" style={{ padding: 12 }}>
+        <p data-testid="grid-loading" className="gc-page">
           Chargement du tableau…
         </p>
       )}
 
-      <div style={{ padding: '6px 12px', borderTop: '1px solid #EDF1F5' }}>
+      <div className="gc-footbar">
         <button
           type="button"
           data-testid="add-row"
           onClick={() => void addRow()}
-          style={{
-            padding: '5px 12px',
-            border: '1px solid #2772A4',
-            borderRadius: 4,
-            background: '#FFFFFF',
-            color: '#2772A4',
-            cursor: 'pointer',
-          }}
+          className="gc-btn-primary"
         >
           + Ajouter une ligne
         </button>

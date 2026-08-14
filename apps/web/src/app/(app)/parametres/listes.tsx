@@ -27,8 +27,10 @@ export function stylePastille(
     fontWeight: choix.bold ? 700 : 400,
     display: 'inline-block',
     padding: '2px 10px',
-    borderRadius: '10px',
-    border: '1px solid rgba(0, 0, 0, 0.15)',
+    // Forme et contour = CHROME du template ; le fond et le texte de la
+    // pastille restent les couleurs MÉTIER du choix.
+    borderRadius: 'var(--gc-radius-pill)',
+    border: '1px solid var(--gc-border)',
   };
 }
 

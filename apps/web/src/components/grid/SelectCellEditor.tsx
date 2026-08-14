@@ -71,12 +71,12 @@ export function SelectCellEditor(
     <div
       data-testid="select-editor"
       style={{
-        background: '#FFFFFF',
-        border: '1px solid #D8DEE4',
-        borderRadius: 4,
-        boxShadow: '0 6px 18px rgba(0,0,0,0.14)',
+        background: 'var(--gc-surface)',
+        border: '1px solid var(--gc-border)',
+        borderRadius: 'var(--gc-radius)',
+        boxShadow: 'var(--gc-shadow-md)',
         minWidth: 200,
-        padding: 4,
+        padding: 5,
       }}
     >
       <input
@@ -90,9 +90,9 @@ export function SelectCellEditor(
         style={{
           width: '100%',
           boxSizing: 'border-box',
-          padding: '4px 6px',
-          border: '1px solid #D8DEE4',
-          borderRadius: 3,
+          padding: '5px 8px',
+          border: '1px solid var(--gc-border)',
+          borderRadius: 'var(--gc-radius-sm)',
           font: 'inherit',
         }}
       />
@@ -117,17 +117,21 @@ export function SelectCellEditor(
                 display: 'block',
                 width: '100%',
                 textAlign: 'left',
-                border: index === highlighted ? '2px solid #0066CC' : 'none',
+                // Surlignage clavier : c'est du CHROME, il passe à l'accent
+                // orange du template. Les couleurs du choix restent métier.
+                border:
+                  index === highlighted ? '2px solid var(--gc-accent)' : '2px solid transparent',
+                borderRadius: 'var(--gc-radius-sm)',
                 cursor: 'pointer',
                 padding: '3px 4px',
-                background: index === highlighted ? '#EDF1F5' : 'transparent',
+                background: index === highlighted ? 'var(--gc-surface-hover)' : 'transparent',
               }}
             >
               <span
                 style={{
                   display: 'inline-block',
-                  padding: '1px 6px',
-                  borderRadius: 3,
+                  padding: '1px 8px',
+                  borderRadius: 'var(--gc-radius-pill)',
                   backgroundColor: choice.bgColor ?? undefined,
                   color: choice.textColor ?? undefined,
                   fontWeight: choice.bold ? 700 : 400,
@@ -139,7 +143,7 @@ export function SelectCellEditor(
           </li>
         ))}
         {visible.length === 0 ? (
-          <li style={{ padding: '4px 6px', color: '#6B7785' }}>Aucun choix</li>
+          <li style={{ padding: '4px 6px', color: 'var(--gc-muted)' }}>Aucun choix</li>
         ) : null}
       </ul>
       <button
@@ -151,11 +155,12 @@ export function SelectCellEditor(
           marginTop: 4,
           width: '100%',
           border: 'none',
+          borderRadius: 'var(--gc-radius-sm)',
           background: 'transparent',
           cursor: 'pointer',
           textAlign: 'left',
-          padding: '3px 6px',
-          color: '#6B7785',
+          padding: '4px 8px',
+          color: 'var(--gc-muted)',
         }}
       >
         Vider la cellule
