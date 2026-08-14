@@ -38,8 +38,11 @@ jobs:
       JWT_SECRET: secret-de-test-ci-non-utilise-en-production
       APP_URL: http://localhost:3000
       PORT: 3001
-      NEXT_PUBLIC_API_URL: ''
-      API_INTERNAL_URL: http://127.0.0.1:3001
+      # En CI il n'y a pas de reverse proxy : le navigateur doit appeler l'API
+      # directement. La valeur vide (même origine) ne vaut qu'en production,
+      # derrière Apache. Voir apps/web/.env.example.
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      API_INTERNAL_URL: http://localhost:3001
 
     steps:
       - uses: actions/checkout@v4
