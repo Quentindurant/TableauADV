@@ -50,8 +50,9 @@ export function DateCellEditor({
         width: '100%',
         height: '100%',
         boxSizing: 'border-box',
-        border: '1px solid #2772A4',
-        padding: '0 4px',
+        border: '2px solid var(--gc-accent)',
+        borderRadius: 'var(--gc-radius-sm)',
+        padding: '0 6px',
         font: 'inherit',
       }}
     />

@@ -30,8 +30,9 @@ export function SelectCellRenderer({ value, choices }: SelectCellRendererProps) 
         overflow: 'hidden',
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
-        padding: '1px 6px',
-        borderRadius: 3,
+        // Forme du template (pastille arrondie) ; les couleurs restent métier.
+        padding: '1px 9px',
+        borderRadius: 'var(--gc-radius-pill)',
         lineHeight: '20px',
         backgroundColor: choice?.bgColor ?? undefined,
         color: choice?.textColor ?? undefined,

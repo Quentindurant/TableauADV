@@ -29,9 +29,9 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
         bottom: 0,
         width: 340,
         zIndex: 1100,
-        background: '#FFFFFF',
-        borderLeft: '1px solid #D8DEE4',
-        boxShadow: '-8px 0 24px rgba(0,0,0,0.12)',
+        background: 'var(--gc-surface)',
+        borderLeft: '1px solid var(--gc-border)',
+        boxShadow: '-8px 0 24px rgba(16, 53, 59, 0.14)',
         display: 'flex',
         flexDirection: 'column',
         fontSize: 13,
@@ -42,9 +42,11 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '10px 12px',
-          borderBottom: '1px solid #EDF1F5',
-          fontWeight: 700,
+          padding: '12px 16px',
+          borderBottom: '1px solid var(--gc-border)',
+          background: 'var(--gc-surface-alt)',
+          color: 'var(--gc-petrol)',
+          fontWeight: 800,
         }}
       >
         Historique de la ligne
@@ -53,13 +55,21 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
           data-testid="history-close"
           aria-label="Fermer l’historique"
           onClick={onClose}
-          style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 16 }}
+          style={{
+            border: 'none',
+            borderRadius: 'var(--gc-radius-sm)',
+            background: 'transparent',
+            color: 'var(--gc-muted)',
+            cursor: 'pointer',
+            fontSize: 16,
+            padding: '0 6px',
+          }}
         >
           ×
         </button>
       </header>
 
-      <div style={{ overflowY: 'auto', padding: '8px 12px' }}>
+      <div style={{ overflowY: 'auto', padding: '10px 16px' }}>
         {loading ? <p data-testid="history-loading">Chargement…</p> : null}
 
         {!loading && events.length === 0 ? (
@@ -70,13 +80,13 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
           ? events.map((event) => (
               <article
                 key={event.id}
-                style={{ borderBottom: '1px solid #EDF1F5', padding: '6px 0' }}
+                style={{ borderBottom: '1px solid var(--gc-border-soft)', padding: '8px 0' }}
               >
                 <div>
                   <strong data-testid="history-type">{TYPE_LABELS[event.type]}</strong>{' '}
                   par <span data-testid="history-author">{event.userName}</span>
                 </div>
-                <div style={{ color: '#6B7785' }}>
+                <div style={{ color: 'var(--gc-muted)' }}>
                   {new Date(event.at).toLocaleString('fr-FR')}
                 </div>
                 <pre
@@ -84,9 +94,10 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
                     margin: '4px 0 0',
                     whiteSpace: 'pre-wrap',
                     wordBreak: 'break-word',
-                    background: '#F7F9FB',
-                    padding: 6,
-                    borderRadius: 3,
+                    background: 'var(--gc-surface-alt)',
+                    color: 'var(--gc-petrol-soft)',
+                    padding: 8,
+                    borderRadius: 'var(--gc-radius-sm)',
                     fontSize: 12,
                   }}
                 >

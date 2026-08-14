@@ -54,30 +54,8 @@ export function MonthTabs({
 }: MonthTabsProps) {
   const ordered = [...months].sort((a, b) => a.month.localeCompare(b.month));
 
-  const tabStyle = (active: boolean): React.CSSProperties => ({
-    border: '1px solid #D8DEE4',
-    borderBottom: active ? '2px solid #2772A4' : '1px solid #D8DEE4',
-    background: active ? '#FFFFFF' : '#EDF1F5',
-    fontWeight: active ? 700 : 400,
-    padding: '4px 10px',
-    borderRadius: '4px 4px 0 0',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  });
-
   return (
-    <nav
-      aria-label="Mois"
-      style={{
-        display: 'flex',
-        gap: 4,
-        alignItems: 'flex-end',
-        overflowX: 'auto',
-        padding: '6px 8px 0',
-        borderTop: '1px solid #D8DEE4',
-        background: '#F7F9FB',
-      }}
-    >
+    <nav aria-label="Mois" className="gc-tabs">
       {ordered.map((info) => {
         const active = info.month === current;
         return (
@@ -87,10 +65,10 @@ export function MonthTabs({
             data-testid={`month-tab-${info.month}`}
             aria-current={active ? 'page' : undefined}
             onClick={() => onSelect(info.month)}
-            style={tabStyle(active)}
+            className="gc-tab"
           >
             {formatMonthLabel(info.month)}{' '}
-            <span style={{ color: '#6B7785', fontWeight: 400 }}>({info.count})</span>
+            <span className="gc-tab__count">({info.count})</span>
           </button>
         );
       })}
@@ -101,7 +79,7 @@ export function MonthTabs({
         title="Créer le mois suivant"
         aria-label="Créer le mois suivant"
         onClick={() => onCreate(nextMonth(latestMonth(ordered)))}
-        style={{ ...tabStyle(false), fontWeight: 700 }}
+        className="gc-tab"
       >
         +
       </button>
@@ -110,7 +88,7 @@ export function MonthTabs({
         type="button"
         data-testid="month-archives"
         onClick={onOpenArchives}
-        style={{ ...tabStyle(false), marginLeft: 'auto' }}
+        className="gc-tab gc-tabs__end"
       >
         ARCHIVES
       </button>

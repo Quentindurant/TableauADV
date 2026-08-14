@@ -490,6 +490,15 @@ th {
   box-shadow: var(--gc-shadow);
 }
 
+/* ------------------------------------------------------ Grille AG Grid --- */
+
+/* En-têtes de colonnes en petites capitales espacées, comme la maquette.
+   Purement visuel : le libellé configuré des colonnes n'est pas modifié. */
+.ag-header-cell-text {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
 /* ----------------------------------------------------- Page connexion --- */
 
 .gc-login {
