@@ -1,0 +1,147 @@
+name: Tests et mise en production
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+# Un seul déploiement à la fois : deux push coup sur coup n'entraînent pas
+# deux builds concurrents sur le VPS.
+concurrency:
+  group: deploy-suivi-commandes
+  cancel-in-progress: true
+
+jobs:
+  # ── 1. Vérifications : rien ne part en production sans suites vertes ──────
+  tests:
+    name: Tests et qualité
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: suivi
+          POSTGRES_PASSWORD: dev
+          POSTGRES_DB: suivi
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Les suites e2e de l'API et Playwright tapent cette base éphémère.
+      DATABASE_URL: postgresql://suivi:dev@127.0.0.1:5432/suivi?schema=public
+      JWT_SECRET: secret-de-test-ci-non-utilise-en-production
+      APP_URL: http://localhost:3000
+      PORT: 3001
+      NEXT_PUBLIC_API_URL: ''
+      API_INTERNAL_URL: http://127.0.0.1:3001
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Installer les dépendances
+        run: pnpm install --frozen-lockfile
+
+      - name: Générer le client Prisma
+        run: pnpm --filter @suivi/api exec prisma generate
+
+      - name: Appliquer les migrations
+        run: pnpm --filter @suivi/api exec prisma migrate deploy
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typage strict du front
+        run: npx tsc --noEmit -p apps/web/tsconfig.json
+
+      - name: Tests unitaires (partagé, API, front)
+        run: |
+          pnpm --filter @suivi/shared test
+          pnpm --filter @suivi/api test:unit
+          pnpm --filter @suivi/web test
+
+      - name: Tests d'intégration de l'API
+        run: pnpm --filter @suivi/api test:e2e
+
+      - name: Build de production
+        run: pnpm build
+
+      # Playwright a besoin des applications construites : il démarre lui-même
+      # l'API et le front (webServer de playwright.config.ts).
+      - name: Installer le navigateur Playwright
+        run: pnpm --filter @suivi/web exec playwright install --with-deps chromium
+
+      - name: Tests de bout en bout (navigateur)
+        run: pnpm --filter @suivi/web test:e2e
+
+      - name: Conserver le rapport en cas d'échec
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: apps/web/playwright-report/
+          retention-days: 7
+
+  # ── 2. Mise en production : uniquement si les tests sont verts ────────────
+  deploy:
+    name: Mise en production
+    needs: tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Déploiement via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # -e : toute commande qui échoue stoppe le déploiement (pas de
+            # redémarrage sur un build cassé). -o pipefail : idem via un pipe.
+            set -eo pipefail
+            export PATH="$HOME/.nvm/versions/node/v22.22.2/bin:$PATH"
+            cd /var/www/html/suivi-commandes
+
+            git fetch origin develop
+            git reset --hard origin/develop
+
+            pnpm install --frozen-lockfile
+            # pnpm 10 n'exécute les postinstall que des paquets autorisés
+            # (pnpm-workspace.yaml) : le client Prisma doit être généré ici.
+            pnpm --filter @suivi/api exec prisma generate
+            # Idempotent : n'applique que les migrations non encore passées.
+            # Jamais de `migrate reset` en production.
+            pnpm --filter @suivi/api exec prisma migrate deploy
+
+            # Un run annulé par `concurrency` peut laisser un build orphelin.
+            # Le crochet [n] évite que pkill ne tue sa propre session SSH.
+            pkill -f "[n]ext build" || true
+            NODE_OPTIONS="--max-old-space-size=2048" pnpm build
+
+            # reload = redémarrage sans coupure si les process tournent déjà.
+            # Le fichier ecosystem définit les ports (3100 web / 3101 API).
+            pm2 reload deploy/ecosystem.config.js --update-env \
+              || pm2 start deploy/ecosystem.config.js
+            pm2 save
+
+            # Contrôle de santé : le déploiement échoue si l'app ne répond pas.
+            sleep 6
+            curl -fsS http://127.0.0.1:3101/api/health > /dev/null
+            curl -fsS -o /dev/null http://127.0.0.1:3100/login
+            echo "Déploiement terminé et vérifié."

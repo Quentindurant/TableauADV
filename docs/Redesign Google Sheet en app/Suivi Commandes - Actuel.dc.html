@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width">
+<style>
+body{margin:0;background:#fff;font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;color:#1a1a1a}
+a{color:#2B7BB9;text-decoration:none} a:hover{color:#1f5c8b;text-decoration:underline}
+</style>
+</helmet>
+<div style="display:flex;flex-direction:column;min-height:100vh;min-width:1900px">
+  <div style="display:flex;align-items:center;gap:14px;padding:12px 16px">
+    <div style="font-weight:700;font-size:15px;white-space:nowrap">Suivi commandes</div>
+    <input placeholder="Rechercher (tous les mois + archives)…" style="width:330px;padding:7px 10px;border:1px solid #c8ccd0;border-radius:4px;font-size:13px" />
+    <button style="background:#2B7BB9;color:#fff;border:none;border-radius:4px;padding:8px 14px;font-size:13px;font-weight:600">Rechercher</button>
+    <div style="margin-left:auto;font-size:13px;color:#555">Seul(e) sur cette vue <span style="color:#2B7BB9;font-weight:700">Quentin</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:56px 286px 42px 74px 106px 92px 594px 46px 92px 100px 78px 116px 1fr;border-top:1px solid #e3e5e8;border-bottom:1px solid #d7dadd;font-size:11px;font-weight:700;color:#333">
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">IMPE</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">CLIENT</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1;overflow:hidden;white-space:nowrap">D…</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1;overflow:hidden;white-space:nowrap">CP CLI…</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">PARTE</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">DATE</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">PORTA ET COMMENTAIRES IMPORTANT</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1;overflow:hidden;white-space:nowrap">HE…</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">TECH</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">NOM TECH</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">NOM CP</div>
+    <div style="padding:8px 7px;border-right:1px solid #eceff1">INSTALLATION</div>
+    <div style="padding:8px 7px">COMMENTAIRES PLANIF</div>
+  </div>
+  <sc-for list="{{rows}}" as="r" hint-placeholder-count="14">
+    <div style="display:grid;grid-template-columns:56px 286px 42px 74px 106px 92px 594px 46px 92px 100px 78px 116px 1fr;border-bottom:1px solid #ececec;font-size:12px;align-items:stretch;line-height:17px">
+      <div style="padding:5px 6px;display:flex;align-items:center;gap:4px;background:{{r.impeBg}}">
+        <span style="color:#9aa0a6;font-size:9px;letter-spacing:1px">⠿</span>
+        <span style="font-size:11px;font-weight:700;color:{{r.impeFg}}">{{r.impe}}</span>
+      </div>
+      <div style="padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:{{r.clientBg}}">{{r.client}}</div>
+      <div style="padding:5px 7px">{{r.dpt}}</div>
+      <div style="padding:5px 7px">{{r.cp}}</div>
+      <div style="padding:4px 7px;display:flex;align-items:center"><span style="background:{{r.parteBg}};color:{{r.parteFg}};font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%">{{r.parte}}</span></div>
+      <div style="padding:5px 7px;white-space:nowrap">{{r.date}}</div>
+      <div style="padding:5px 8px;background:{{r.portaBg}};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center"><span style="overflow:hidden;text-overflow:ellipsis">{{r.porta}}</span></div>
+      <div style="padding:5px 7px;white-space:nowrap">{{r.heure}}</div>
+      <div style="padding:4px 7px;display:flex;align-items:center"><span style="background:{{r.techBg}};color:{{r.techColor}};font-weight:{{r.techW}};font-size:11.5px;padding:2px 6px;white-space:nowrap">{{r.tech}}</span></div>
+      <div style="padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.nomTech}}</div>
+      <div style="padding:5px 7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{r.nomCp}}</div>
+      <div style="padding:4px 7px;display:flex;align-items:center"><span style="background:{{r.stBg}};color:{{r.stFg}};font-weight:{{r.stW}};font-size:10.5px;padding:2px 7px;border-radius:2px;white-space:nowrap">{{r.statut}}</span></div>
+      <div style="padding:5px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center"><span style="overflow:hidden;text-overflow:ellipsis">{{r.planif}}</span></div>
+    </div>
+  </sc-for>
+  <div style="padding:10px 16px">
+    <button style="background:#fff;border:1px solid #2B7BB9;color:#2B7BB9;border-radius:6px;padding:7px 12px;font-size:13px;cursor:pointer">+ Ajouter une ligne</button>
+  </div>
+  <div style="display:flex;gap:4px;padding:8px 12px;background:#f4f5f6;border-top:1px solid #dfe2e5;align-items:center;margin-top:auto;overflow:hidden">
+    <sc-for list="{{months}}" as="m" hint-placeholder-count="13">
+      <div style="display:flex;align-items:baseline;gap:4px;padding:6px 10px;background:{{m.bg}};border:1px solid {{m.border}};border-radius:3px;white-space:nowrap;font-size:12px;font-weight:{{m.w}}">{{m.label}} <span style="font-size:11px;color:#8a9096">{{m.countLbl}}</span></div>
+    </sc-for>
+    <div style="padding:6px 12px;border:1px solid #ccc;border-radius:3px;background:#fff;font-size:12px;font-weight:700">+</div>
+    <div style="padding:6px 12px;border:1px solid #ccc;border-radius:3px;background:#fff;font-size:12px;font-weight:700">ARCHIVES</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { rows: [], months: [] };
+  componentDidMount() {
+    import(new URL('./rows-data.js', document.baseURI).href).catch(e => { console.error('import rows-data failed', e); }).then(m => {
+      if (!m) return;
+      const rows = m.ROWS.map(r => {
+        const p = r.parte ? (m.PARTE[r.parte] || { bg: '#ECEEF0', fg: '#333' }) : { bg: 'transparent', fg: '#000' };
+        const s = r.statut ? m.STATUT[r.statut] : null;
+        return Object.assign({}, r, {
+          parteBg: p.bg, parteFg: p.fg,
+          stBg: s ? s.bg : 'transparent', stFg: s ? s.fg : '#000', stW: s && s.bold ? '700' : '400',
+          techColor: m.TECH[r.tech] || '#1a1a1a', techW: m.TECH[r.tech] ? '700' : '400',
+          techBg: r.techHl ? '#FFFF00' : 'transparent',
+          impeBg: r.impeRed ? '#FF0000' : 'transparent',
+          impeFg: r.impeRed ? '#7B0000' : '#555',
+          clientBg: r.clientHl ? '#FFFF00' : 'transparent',
+          portaBg: r.portaHl ? '#FFFF00' : 'transparent'
+        });
+      });
+      const months = m.MONTHS.map(x => ({
+        label: x.label, countLbl: '(' + x.count + ')',
+        bg: x.active ? '#ffffff' : '#f9f9f9',
+        border: x.active ? '#2B7BB9' : '#cfd3d6',
+        w: x.active ? '700' : '400'
+      }));
+      this.setState({ rows, months });
+    });
+  }
+  renderVals() { return { rows: this.state.rows, months: this.state.months }; }
+}
+</script>
+</body>
+</html>

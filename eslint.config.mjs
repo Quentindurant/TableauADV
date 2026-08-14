@@ -29,6 +29,9 @@ export default tseslint.config(
       '**/coverage/**',
       '.claude/**',
       '.superpowers/**',
+      // Maquettes et exports d'outils de design : code de navigateur livré tel
+      // quel, hors périmètre applicatif.
+      'docs/**',
     ],
   },
   js.configs.recommended,
