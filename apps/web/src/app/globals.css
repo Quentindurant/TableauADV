@@ -54,6 +54,7 @@
   --gc-shadow: 0 3px 14px rgba(16, 53, 59, 0.09);
   --gc-shadow-md: 0 8px 24px rgba(16, 53, 59, 0.16);
   --gc-shadow-lg: 0 12px 32px rgba(16, 53, 59, 0.2);
+  --gc-shadow-panel: -8px 0 24px rgba(16, 53, 59, 0.14);
 
   /* Typographie : Archivo est chargée par next/font (variable --font-archivo) */
   --gc-font: var(--font-archivo), "Archivo", system-ui, sans-serif;
@@ -668,9 +669,33 @@ th {
   background: var(--gc-surface-hover);
 }
 
+.gc-settings ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gc-settings li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+}
+
 .gc-settings form {
   margin-top: 16px;
   padding: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
   background: var(--gc-surface);
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius);
@@ -679,4 +704,25 @@ th {
 .gc-settings fieldset {
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius);
+}
+
+.gc-settings h3 {
+  margin: 22px 0 10px;
+}
+
+/* Titre de formulaire : ligne entière, les champs s'alignent en dessous. */
+.gc-settings form > h3,
+.gc-settings form > p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.gc-settings [role='alert'] {
+  color: var(--gc-danger);
+  font-weight: 600;
+}
+
+.gc-settings [role='status'] {
+  color: var(--gc-petrol);
+  font-weight: 600;
 }

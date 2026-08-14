@@ -54,27 +54,13 @@ export default function ArchivesPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '8px 12px',
-          borderBottom: '1px solid #EDF1F5',
-        }}
-      >
-        <strong style={{ fontSize: 14 }}>Archives</strong>
+      <div className="gc-toolbar">
+        <strong className="gc-view-title">Archives</strong>
         <button
           type="button"
           data-testid="back-to-months"
           onClick={() => router.push('/')}
-          style={{
-            padding: '5px 12px',
-            border: '1px solid #D8DEE4',
-            borderRadius: 4,
-            background: '#FFFFFF',
-            cursor: 'pointer',
-          }}
+          className="gc-btn-ghost"
         >
           Retour aux mois
         </button>
@@ -83,7 +69,7 @@ export default function ArchivesPage() {
       {ready ? (
         <DataGrid reload={reload} />
       ) : (
-        <p data-testid="grid-loading" style={{ padding: 12 }}>
+        <p data-testid="grid-loading" className="gc-page">
           Chargement des archives…
         </p>
       )}

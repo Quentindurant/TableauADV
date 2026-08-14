@@ -31,7 +31,7 @@ export function RowHistoryPanel({ events, loading, onClose }: RowHistoryPanelPro
         zIndex: 1100,
         background: 'var(--gc-surface)',
         borderLeft: '1px solid var(--gc-border)',
-        boxShadow: '-8px 0 24px rgba(16, 53, 59, 0.14)',
+        boxShadow: 'var(--gc-shadow-panel)',
         display: 'flex',
         flexDirection: 'column',
         fontSize: 13,

@@ -18,10 +18,10 @@ export default function ParametresPage() {
   const [onglet, setOnglet] = useState<OngletParametres>('colonnes');
 
   return (
-    <main>
+    <main className="gc-settings">
       <h1>Paramètres</h1>
 
-      <div role="tablist" aria-label="Sections des paramètres">
+      <div role="tablist" aria-label="Sections des paramètres" className="gc-settings__tablist">
         {ONGLETS.map((element) => (
           <button
             key={element.id}
@@ -31,6 +31,7 @@ export default function ParametresPage() {
             aria-controls={`panneau-${element.id}`}
             aria-selected={onglet === element.id}
             onClick={() => setOnglet(element.id)}
+            className="gc-settings__tab"
           >
             {element.libelle}
           </button>

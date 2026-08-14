@@ -68,7 +68,7 @@ function ResultatsRecherche() {
   }
 
   return (
-    <div style={{ padding: 12 }}>
+    <div className="gc-page">
       {loading ? <p data-testid="search-loading">Recherche en cours…</p> : null}
 
       {!loading && query.trim() !== '' && rows.length === 0 ? (
@@ -76,25 +76,16 @@ function ResultatsRecherche() {
       ) : null}
 
       {groupByMonth(rows).map(([group, groupRows]) => (
-        <section key={group} data-testid={`search-group-${group}`} style={{ marginTop: 16 }}>
-          <h2 style={{ fontSize: 14, margin: '0 0 6px' }}>
+        <section key={group} data-testid={`search-group-${group}`} className="gc-results__group">
+          <h2 className="gc-results__title">
             {group === 'archives' ? 'ARCHIVES' : formatMonthLabel(group)} — {groupRows.length}{' '}
             ligne(s)
           </h2>
-          <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 13 }}>
+          <table className="gc-results__table">
             <thead>
               <tr>
                 {preview.map((column) => (
-                  <th
-                    key={column.key}
-                    style={{
-                      textAlign: 'left',
-                      borderBottom: '1px solid #D8DEE4',
-                      padding: '4px 6px',
-                    }}
-                  >
-                    {column.label}
-                  </th>
+                  <th key={column.key}>{column.label}</th>
                 ))}
               </tr>
             </thead>
@@ -104,13 +95,10 @@ function ResultatsRecherche() {
                   key={row.id}
                   data-testid={`search-row-${row.id}`}
                   onClick={() => openMonth(row)}
-                  style={{ cursor: 'pointer' }}
+                  className="gc-results__row"
                 >
                   {preview.map((column) => (
-                    <td
-                      key={column.key}
-                      style={{ borderBottom: '1px solid #EDF1F5', padding: '4px 6px' }}
-                    >
+                    <td key={column.key}>
                       {row.data[column.key] === null || row.data[column.key] === undefined
                         ? ''
                         : String(row.data[column.key])}
@@ -128,7 +116,7 @@ function ResultatsRecherche() {
 
 export default function RecherchePage() {
   return (
-    <Suspense fallback={<p style={{ padding: 12 }}>Chargement…</p>}>
+    <Suspense fallback={<p className="gc-page">Chargement…</p>}>
       <ResultatsRecherche />
     </Suspense>
   );
