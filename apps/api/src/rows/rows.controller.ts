@@ -48,8 +48,11 @@ export class RowsController {
   }
 
   @Get('search')
-  async search(@Query('q') q?: string): Promise<RowDTO[]> {
-    return this.rows.search(q ?? '');
+  async search(@Query('q') q?: unknown): Promise<RowDTO[]> {
+    // Express transforme `?q=a&q=b` en tableau : le contrat de cette route ne
+    // documente aucune erreur (200 systématique), on traite donc toute forme
+    // hors chaîne comme une recherche absente plutôt que de lever une 422.
+    return this.rows.search(typeof q === 'string' ? q : '');
   }
 
   @Post()
@@ -95,7 +98,7 @@ export class RowsController {
 
   @Delete(':id')
   @HttpCode(204)
-  async remove(@Param('id') id: string): Promise<void> {
-    await this.rows.remove(id);
+  async remove(@Param('id') id: string, @CurrentUserId() userId: string): Promise<void> {
+    await this.rows.remove(id, userId);
   }
 }

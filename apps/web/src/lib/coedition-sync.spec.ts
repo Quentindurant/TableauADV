@@ -166,4 +166,55 @@ describe('refreshConfig', () => {
     await refreshConfig('columns');
     expect(useAppStore.getState().toast?.message).toBe(RESYNC_ERROR_MESSAGE);
   });
+
+  it('recharge aussi les lignes de la vue courante pour le scope choices (R1 : libellé renommé propagé aux rows)', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') return [column] as never;
+      if (path === '/rows?month=2026-08') return [rowFromServer] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
+
+    await refreshConfig('choices');
+
+    expect(apiFetch).toHaveBeenCalledWith('/rows?month=2026-08');
+    expect(useAppStore.getState().columns).toEqual([column]);
+    expect(useAppStore.getState().rows).toEqual([rowFromServer]);
+  });
+
+  it('recharge les lignes des archives pour le scope choices quand la vue courante est archives', async () => {
+    useAppStore.setState({ view: 'archives', monthCourant: '2026-08' });
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') return [column] as never;
+      if (path === '/rows?archived=true') return [rowFromServer] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
+
+    await refreshConfig('choices');
+
+    expect(apiFetch).toHaveBeenCalledWith('/rows?archived=true');
+    expect(useAppStore.getState().rows).toEqual([rowFromServer]);
+  });
+
+  it('ignore la réponse choices si la vue affichée a changé pendant le rechargement (garde anti-obsolescence)', async () => {
+    let resolveColumns!: (value: ColumnDTO[]) => void;
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') {
+        return new Promise<ColumnDTO[]>((resolve) => {
+          resolveColumns = resolve;
+        });
+      }
+      if (path === '/rows?month=2026-08') return [rowFromServer] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
+
+    const pending = refreshConfig('choices');
+    // Le collègue change de mois avant que la réponse réseau (lente)
+    // n'arrive : elle ne doit plus jamais atteindre le store.
+    useAppStore.setState({ view: 'archives', monthCourant: '2026-09' });
+    resolveColumns([column]);
+    await pending;
+
+    expect(useAppStore.getState().columns).toEqual([]);
+    expect(useAppStore.getState().rows).toEqual([]);
+  });
 });

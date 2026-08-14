@@ -208,6 +208,17 @@ Attendu : les deux fichiers existent, `.env` de l'API en `-rw-------`.
 
 ```bash
 cd ~/suivi-commandes
+pnpm --filter @suivi/api exec prisma generate
+```
+
+Attendu : `✔ Generated Prisma Client`. Indispensable ici : pnpm 10 ignore par
+défaut les scripts `postinstall` (voir étape 4 et `pnpm-workspace.yaml`,
+`onlyBuiltDependencies`), donc rien ne garantit que le client Prisma existe
+déjà à ce stade ; sans lui, `prisma db seed` échoue et le build de l'étape 7
+échoue aussi (erreurs `Property 'user' does not exist on type
+'PrismaService'`).
+
+```bash
 pnpm --filter @suivi/api exec prisma migrate deploy
 ```
 
@@ -460,6 +471,7 @@ sudo -iu suivi
 cd ~/suivi-commandes
 git fetch origin && git checkout main && git pull
 pnpm install --frozen-lockfile
+pnpm --filter @suivi/api exec prisma generate
 pnpm --filter @suivi/api exec prisma migrate deploy
 pnpm --filter @suivi/api build
 NODE_ENV=production pnpm --filter @suivi/web build

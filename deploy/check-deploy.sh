@@ -160,8 +160,62 @@ check_install() {
   expect_grep "$f" 'openssl rand -base64 32' "install : JWT_SECRET généré aléatoirement"
   expect_grep "$f" 'git clone' "install : clonage du dépôt"
   expect_grep "$f" 'pnpm install --frozen-lockfile' "install : installation des dépendances"
+  expect_grep "$f" 'onlyBuiltDependencies' "install : pnpm-workspace.yaml — onlyBuiltDependencies mentionné (pnpm 10 ignore les postinstall par défaut)"
   expect_grep "$f" 'prisma migrate deploy' "install : migrations Prisma en production"
   expect_grep "$f" 'prisma db seed' "install : seed initial"
+
+  # pnpm 10 ignore les scripts postinstall par défaut : sans
+  # `prisma generate` explicite, le client Prisma n'existe pas et
+  # `prisma db seed`/le build de l'API échouent (TS2339 sur PrismaService).
+  # Il faut donc `prisma generate` aux DEUX endroits où la procédure
+  # regénère l'installation : §6 (install initiale, avant migrate
+  # deploy/db seed) et §13 (mise à jour, après pnpm install, avant le
+  # build). Un simple `expect_grep` ne verrait pas une régression où le
+  # motif n'apparaîtrait qu'une fois — on vérifie donc aussi le nombre
+  # d'occurrences et leur position relative aux commandes qui en dépendent.
+  if node -e '
+    const fs = require("fs");
+    const path = process.argv[1] + "/deploy/install.md";
+    const lines = fs.readFileSync(path, "utf8").split("\n");
+    const idxAll = (pattern) =>
+      lines.reduce((acc, l, i) => (l.includes(pattern) ? [...acc, i] : acc), []);
+
+    const generateLines = idxAll("pnpm --filter @suivi/api exec prisma generate");
+    if (generateLines.length < 2) {
+      throw new Error(
+        `« pnpm --filter @suivi/api exec prisma generate » doit apparaître au moins 2 fois ` +
+        `(§6 et §13), trouvé ${generateLines.length} fois`,
+      );
+    }
+
+    const migrateLines = idxAll("pnpm --filter @suivi/api exec prisma migrate deploy");
+    const seedLine = lines.findIndex((l) => l.includes("pnpm --filter @suivi/api exec prisma db seed"));
+    const installLines = idxAll("pnpm install --frozen-lockfile");
+    const buildLines = idxAll("pnpm --filter @suivi/api build");
+
+    if (migrateLines.length < 2) throw new Error("« prisma migrate deploy » doit apparaître dans §6 et §13");
+    if (installLines.length < 2) throw new Error("« pnpm install --frozen-lockfile » doit apparaître dans §4 et §13");
+    if (buildLines.length < 2) throw new Error("le build de l’API doit apparaître dans §7 et §13");
+    if (seedLine === -1) throw new Error("« prisma db seed » introuvable (§6)");
+
+    const gen6 = generateLines.find((g) => g < migrateLines[0] && g < seedLine);
+    if (gen6 === undefined) {
+      throw new Error("§6 : « prisma generate » doit précéder « prisma migrate deploy » et « prisma db seed »");
+    }
+
+    const gen13 = generateLines.find(
+      (g) => g > installLines[installLines.length - 1] && g < buildLines[buildLines.length - 1],
+    );
+    if (gen13 === undefined) {
+      throw new Error(
+        "§13 : « prisma generate » doit se trouver après « pnpm install --frozen-lockfile » et avant le build de l’API",
+      );
+    }
+  ' "$ROOT"; then
+    ok "install : prisma generate présent et positionné avant migrate/seed (§6) et avant le build (§13)"
+  else
+    fail "install : prisma generate manquant ou mal positionné (§6 avant migrate/seed, §13 après pnpm install et avant le build) — voir l'erreur node ci-dessus"
+  fi
   expect_grep "$f" 'import:xlsx' "install : import du classeur Excel"
   expect_grep "$f" 'filter @suivi/api build' "install : build de l'API"
   expect_grep "$f" 'filter @suivi/web build' "install : build du web"

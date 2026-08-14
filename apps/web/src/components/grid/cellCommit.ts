@@ -77,6 +77,24 @@ export const EDIT_FAILED_MESSAGE = 'Modification non enregistrée — vérifiez 
 export interface CellEditDeps {
   /** Clignotement AG Grid de la cellule rejetée (injectable pour les tests). */
   flashCell?: (rowId: string, colKey: string) => void;
+  /**
+   * Valeur de la cellule AVANT l'édition, à utiliser pour le rollback en cas
+   * d'échec (409 sans `details.current`, ou toute autre erreur).
+   *
+   * Doit être fournie explicitement par l'appelant réel (`DataGrid` la lit
+   * sur `event.oldValue`, capturé par AG Grid avant l'édition) : au moment où
+   * `applyCellEdit` s'exécute, le `valueSetter` de `columnDefs.ts` a déjà pu
+   * muter `Row.data[colKey]` EN PLACE sur l'objet du store (`rowData={rows}`
+   * passe directement les objets du store à AG Grid, sans copie). Relire la
+   * « valeur précédente » dans le store à cet instant renverrait alors la
+   * NOUVELLE valeur, pas l'ancienne, et le rollback réécrirait la valeur déjà
+   * rejetée au lieu de la restaurer.
+   *
+   * Si omise (cas des appels directs, notamment en test, qui n'ont pas
+   * transité par ce `valueSetter`), on retombe sur la valeur lue dans le
+   * store — comportement historique, correct dans ce cas précis.
+   */
+  previousValue?: CellValue;
 }
 
 interface VersionConflictDetails {
@@ -100,7 +118,7 @@ export async function applyCellEdit(
   if (!known) {
     return;
   }
-  const previousValue = known.data[colKey] ?? null;
+  const previousValue = deps.previousValue !== undefined ? deps.previousValue : (known.data[colKey] ?? null);
   const expectedVersion = known.version;
 
   store.setRowLocalValue(rowId, colKey, value);

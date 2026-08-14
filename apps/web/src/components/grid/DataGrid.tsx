@@ -266,7 +266,16 @@ export function DataGrid({ reload }: DataGridProps) {
     (event: CellValueChangedEvent<RowDTO, CellValue>) => {
       const rowId = (event.data as RowDTO).id;
       const colKey = event.column.getColId();
-      void applyCellEdit(rowId, colKey, event.newValue as CellValue, { flashCell });
+      // `event.oldValue` est capturé par AG Grid AVANT l'appel au
+      // `valueSetter` de la colonne, qui mute `Row.data[colKey]` en place sur
+      // l'objet du store (voir columnDefs.ts). On le transmet explicitement
+      // à `applyCellEdit` : c'est la seule valeur "avant édition" encore
+      // fiable à ce stade, indispensable pour un rollback correct en cas
+      // d'échec du PATCH (voir cellCommit.ts, `CellEditDeps.previousValue`).
+      void applyCellEdit(rowId, colKey, event.newValue as CellValue, {
+        flashCell,
+        previousValue: (event.oldValue ?? null) as CellValue,
+      });
     },
     [flashCell],
   );
