@@ -1,9 +1,14 @@
+/* Présence : posée sur le bandeau bleu pétrole (voir globals.css). */
 .presence-bar {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
-  color: #555;
+  font-size: 12.5px;
+  color: var(--gc-on-petrol-muted, #7b8b88);
+}
+
+.presence-empty {
+  white-space: nowrap;
 }
 
 .presence-avatar {
@@ -13,8 +18,8 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  border: 2px solid var(--gc-petrol, #10353b);
+  box-shadow: 0 0 0 1px var(--gc-on-petrol-veil-strong, rgba(0, 0, 0, 0.15));
   font-size: 11px;
   font-weight: 700;
   color: #fff;
@@ -24,9 +29,9 @@
 }
 
 .connection-banner {
-  padding: 6px 12px;
-  background: #ffa600;
-  color: #7a3d00;
+  padding: 8px 26px;
+  background: var(--gc-accent, #f09048);
+  color: var(--gc-accent-ink, #10353b);
   font-weight: 700;
   font-size: 13px;
   text-align: center;

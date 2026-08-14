@@ -1,0 +1,673 @@
+/* ==========================================================================
+   Template « GC — clair & futuriste » (maquette 3a validée par le client).
+
+   SOURCE UNIQUE des couleurs de CHROME (bandeau, onglets, boutons, champs,
+   cartes, bordures, typo). Aucune couleur de chrome ne doit être écrite en
+   dur ailleurs : on référence toujours une variable définie ici.
+
+   Les couleurs MÉTIER ne passent JAMAIS par ce fichier — elles viennent des
+   données et restent inchangées : pastilles des choix (ChoiceDTO.bgColor /
+   textColor), surlignage manuel des cellules (RowDTO.formats.bg), couleurs
+   de curseur des collègues (UserDTO.cursorColor) et décorations de
+   co-édition.
+   ========================================================================== */
+
+:root {
+  /* Bleu pétrole : bandeau, titres, texte fort */
+  --gc-petrol: #10353b;
+  --gc-petrol-strong: #14383f;
+  --gc-petrol-soft: #33474a;
+
+  /* Accents : orange = CTA et état actif ; violet = accent secondaire */
+  --gc-accent: #f09048;
+  --gc-accent-ink: #10353b;
+  --gc-violet: #a46fe0;
+
+  /* Gris-verts froids : texte secondaire, en-têtes de colonnes */
+  --gc-muted: #7b8b88;
+  --gc-muted-soft: #8fa09c;
+
+  /* Surfaces claires légèrement vertes / crème */
+  --gc-surface: #ffffff;
+  --gc-surface-hover: #f5faf8;
+  --gc-surface-alt: #f1f5f3;
+  --gc-surface-sunken: #e9efed;
+  --gc-border: #e4eae8;
+  --gc-border-soft: #f1f5f3;
+  --gc-cream: #f4f1ea;
+
+  /* Posé sur le bleu pétrole */
+  --gc-on-petrol: #f4f1ea;
+  --gc-on-petrol-muted: rgba(244, 241, 234, 0.55);
+  --gc-on-petrol-veil: rgba(244, 241, 234, 0.08);
+  --gc-on-petrol-veil-strong: rgba(244, 241, 234, 0.16);
+  --gc-on-petrol-field: rgba(244, 241, 234, 0.94);
+
+  /* États (chrome uniquement) */
+  --gc-danger: #c0392b;
+
+  /* Formes et profondeur */
+  --gc-radius-pill: 999px;
+  --gc-radius-lg: 18px;
+  --gc-radius: 10px;
+  --gc-radius-sm: 6px;
+  --gc-shadow: 0 3px 14px rgba(16, 53, 59, 0.09);
+  --gc-shadow-md: 0 8px 24px rgba(16, 53, 59, 0.16);
+  --gc-shadow-lg: 0 12px 32px rgba(16, 53, 59, 0.2);
+
+  /* Typographie : Archivo est chargée par next/font (variable --font-archivo) */
+  --gc-font: var(--font-archivo), "Archivo", system-ui, sans-serif;
+}
+
+/* --------------------------------------------------------------- Base --- */
+
+html {
+  font-family: var(--gc-font);
+}
+
+body {
+  margin: 0;
+  font-family: var(--gc-font);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--gc-petrol-soft);
+  background: var(--gc-surface-alt);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--gc-petrol);
+  letter-spacing: -0.01em;
+  font-weight: 800;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+h2 {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+a {
+  color: var(--gc-petrol);
+  text-decoration-color: var(--gc-muted-soft);
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--gc-accent-ink);
+  text-decoration-color: var(--gc-accent);
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--gc-border);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gc-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------ Contrôles --- */
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+button {
+  padding: 6px 12px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--gc-surface-hover);
+  border-color: var(--gc-muted-soft);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+input:not([type='color']):not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  padding: 6px 10px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+}
+
+input:not([type='color']):not([type='checkbox']):not([type='radio']):focus,
+select:focus,
+textarea:focus {
+  border-color: var(--gc-accent);
+  outline: none;
+}
+
+input[type='color'] {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-surface);
+  cursor: pointer;
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--gc-accent);
+  cursor: pointer;
+}
+
+label {
+  color: var(--gc-petrol-soft);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th {
+  color: var(--gc-muted-soft);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* -------------------------------------------------------- Bandeau haut --- */
+
+.gc-topbar {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 12px 26px;
+  background: var(--gc-petrol);
+  color: var(--gc-on-petrol);
+}
+
+.gc-topbar__brand {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gc-topbar__eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gc-accent);
+}
+
+.gc-topbar__title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.gc-topbar__right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Recherche (posée sur le bandeau pétrole) */
+
+.gc-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.gc-search__input {
+  width: 300px;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-on-petrol-field);
+  color: var(--gc-petrol);
+  font-size: 13px;
+}
+
+.gc-search__input::placeholder {
+  color: var(--gc-muted);
+}
+
+.gc-search__input:focus {
+  border-color: var(--gc-accent);
+  outline: none;
+}
+
+.gc-search__submit {
+  padding: 8px 16px;
+  border: 1px solid var(--gc-on-petrol-veil-strong);
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-on-petrol-veil);
+  color: var(--gc-on-petrol);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gc-search__submit:hover:not(:disabled) {
+  background: var(--gc-accent);
+  border-color: var(--gc-accent);
+  color: var(--gc-accent-ink);
+}
+
+/* Menu de compte */
+
+.gc-account {
+  position: relative;
+}
+
+.gc-account__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-on-petrol-veil);
+  color: var(--gc-on-petrol);
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+  cursor: pointer;
+}
+
+.gc-account__summary::-webkit-details-marker {
+  display: none;
+}
+
+.gc-account__summary:hover {
+  background: var(--gc-on-petrol-veil-strong);
+}
+
+/* Pastille aux initiales : la couleur de fond est MÉTIER (cursorColor). */
+.gc-account__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 0 2px rgba(0, 0, 0, 0.55);
+}
+
+.gc-account__menu {
+  position: absolute;
+  right: 0;
+  margin-top: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 190px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  box-shadow: var(--gc-shadow-md);
+  z-index: 1200;
+  white-space: nowrap;
+}
+
+.gc-account__menu a,
+.gc-account__menu button {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--gc-radius-sm);
+  background: transparent;
+  color: var(--gc-petrol);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+}
+
+.gc-account__menu a:hover,
+.gc-account__menu button:hover:not(:disabled) {
+  background: var(--gc-surface-hover);
+}
+
+/* ---------------------------------------------------- Onglets de mois --- */
+
+.gc-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 8px 26px;
+  border-top: 1px solid var(--gc-border);
+  background: var(--gc-surface-alt);
+}
+
+.gc-tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: var(--gc-radius-pill);
+  background: transparent;
+  color: var(--gc-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gc-tab:hover:not(:disabled) {
+  background: var(--gc-surface-sunken);
+  border-color: transparent;
+  color: var(--gc-petrol);
+}
+
+/* Mois actif : pastille orange, comme l'accent unique de la maquette. */
+.gc-tab[aria-current='page'],
+.gc-tab[aria-current='page']:hover:not(:disabled) {
+  background: var(--gc-accent);
+  border-color: var(--gc-accent);
+  color: var(--gc-accent-ink);
+  font-weight: 800;
+}
+
+.gc-tab__count {
+  font-size: 11px;
+  font-weight: 500;
+  opacity: 0.6;
+}
+
+.gc-tabs__end {
+  margin-left: auto;
+}
+
+/* ------------------------------------------------- Boutons de service --- */
+
+.gc-btn-primary {
+  padding: 9px 18px;
+  border: 1px solid var(--gc-accent);
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-accent);
+  color: var(--gc-accent-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gc-btn-primary:hover:not(:disabled) {
+  background: var(--gc-accent);
+  border-color: var(--gc-accent-ink);
+  color: var(--gc-accent-ink);
+}
+
+.gc-btn-ghost {
+  padding: 7px 14px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gc-btn-ghost:hover:not(:disabled) {
+  background: var(--gc-surface-hover);
+  border-color: var(--gc-muted-soft);
+}
+
+/* ------------------------------------------- Barres, cartes et pieds --- */
+
+.gc-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  background: var(--gc-surface);
+  border-bottom: 1px solid var(--gc-border);
+}
+
+.gc-footbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  background: var(--gc-surface);
+  border-top: 1px solid var(--gc-border);
+}
+
+.gc-view-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--gc-petrol);
+  letter-spacing: -0.01em;
+}
+
+.gc-hint {
+  font-size: 12.5px;
+  color: var(--gc-muted);
+}
+
+.gc-page {
+  padding: 22px 26px;
+}
+
+.gc-card {
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-lg);
+  box-shadow: var(--gc-shadow);
+}
+
+/* ----------------------------------------------------- Page connexion --- */
+
+.gc-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--gc-surface-alt);
+}
+
+.gc-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 22rem;
+  padding: 32px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-lg);
+  box-shadow: var(--gc-shadow);
+}
+
+.gc-login__eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gc-accent);
+}
+
+.gc-login__title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.gc-login__error {
+  margin: 0;
+  color: var(--gc-danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gc-login__submit {
+  margin-top: 4px;
+  padding: 10px 18px;
+  border: 1px solid var(--gc-accent);
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-accent);
+  color: var(--gc-accent-ink);
+  font-weight: 700;
+}
+
+/* ---------------------------------------------------- Page recherche --- */
+
+.gc-results__group {
+  margin-top: 20px;
+}
+
+.gc-results__title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gc-petrol);
+}
+
+.gc-results__table {
+  width: 100%;
+  font-size: 13px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  overflow: hidden;
+}
+
+.gc-results__table th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gc-border);
+  background: var(--gc-surface-alt);
+}
+
+.gc-results__table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gc-border-soft);
+  color: var(--gc-petrol-soft);
+}
+
+.gc-results__row {
+  cursor: pointer;
+}
+
+.gc-results__row:hover td {
+  background: var(--gc-surface-hover);
+}
+
+/* --------------------------------------------------- Page paramètres --- */
+
+.gc-settings {
+  padding: 22px 26px;
+}
+
+.gc-settings__tablist {
+  display: flex;
+  gap: 4px;
+  margin: 16px 0 20px;
+  padding: 4px;
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-surface-sunken);
+  width: fit-content;
+}
+
+.gc-settings__tab {
+  padding: 7px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--gc-radius-pill);
+  background: transparent;
+  color: var(--gc-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gc-settings__tab:hover:not(:disabled) {
+  background: var(--gc-surface);
+  border-color: transparent;
+  color: var(--gc-petrol);
+}
+
+.gc-settings__tab[aria-selected='true'],
+.gc-settings__tab[aria-selected='true']:hover:not(:disabled) {
+  background: var(--gc-accent);
+  border-color: var(--gc-accent);
+  color: var(--gc-accent-ink);
+  font-weight: 800;
+}
+
+/* Contenu des onglets de paramètres : tables et formulaires non stylés,
+   on les habille depuis ici plutôt qu'en style inline. */
+.gc-settings table {
+  width: 100%;
+  font-size: 13px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  overflow: hidden;
+}
+
+.gc-settings th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--gc-border);
+  background: var(--gc-surface-alt);
+}
+
+.gc-settings td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--gc-border-soft);
+  vertical-align: middle;
+}
+
+.gc-settings tbody tr:hover td {
+  background: var(--gc-surface-hover);
+}
+
+.gc-settings form {
+  margin-top: 16px;
+  padding: 18px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+}
+
+.gc-settings fieldset {
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+}

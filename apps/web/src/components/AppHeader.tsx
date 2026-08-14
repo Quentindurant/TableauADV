@@ -5,6 +5,7 @@ import type { UserDTO } from '@suivi/shared';
 import { LogoutButton } from './LogoutButton';
 import { PresenceBar } from './grid/PresenceBar';
 import { SearchBar } from './grid/SearchBar';
+import { initialsOf } from '../lib/coedition';
 
 export interface AppHeaderProps {
   user: UserDTO;
@@ -12,49 +13,24 @@ export interface AppHeaderProps {
 
 export function AppHeader({ user }: AppHeaderProps) {
   return (
-    <header
-      data-testid="app-header"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 16,
-        padding: '8px 12px',
-        borderBottom: '1px solid #D8DEE4',
-        background: '#F7F9FB',
-      }}
-    >
-      <strong style={{ fontSize: 15 }}>Suivi commandes</strong>
-      <SearchBar />
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+    <header data-testid="app-header" className="gc-topbar">
+      <div className="gc-topbar__brand">
+        <span className="gc-topbar__eyebrow">Groupe GC</span>
+        <span className="gc-topbar__title">Suivi commandes</span>
+      </div>
+
+      <div className="gc-topbar__right">
+        <SearchBar />
         <PresenceBar />
-        <details data-testid="account-menu" style={{ position: 'relative' }}>
-          <summary
-            data-testid="current-user"
-            style={{
-              cursor: 'pointer',
-              listStyle: 'none',
-              color: user.cursorColor,
-              fontWeight: 600,
-            }}
-          >
-            {user.displayName}
+        <details data-testid="account-menu" className="gc-account">
+          <summary className="gc-account__summary">
+            {/* Fond de la pastille = couleur MÉTIER du curseur de l'utilisateur. */}
+            <span className="gc-account__avatar" style={{ backgroundColor: user.cursorColor }}>
+              {initialsOf(user.displayName)}
+            </span>
+            <span data-testid="current-user">{user.displayName}</span>
           </summary>
-          <div
-            style={{
-              position: 'absolute',
-              right: 0,
-              marginTop: 6,
-              padding: 8,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              background: '#FFFFFF',
-              border: '1px solid #D8DEE4',
-              borderRadius: 4,
-              zIndex: 1200,
-              whiteSpace: 'nowrap',
-            }}
-          >
+          <div className="gc-account__menu">
             <Link href="/parametres" data-testid="account-profile">
               Profil et paramètres
             </Link>

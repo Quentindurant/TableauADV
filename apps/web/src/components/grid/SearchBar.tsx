@@ -41,7 +41,7 @@ export function SearchBar({ initialQuery = '', onSubmit }: SearchBarProps) {
   }
 
   return (
-    <form role="search" onSubmit={submit} style={{ display: 'flex', gap: 6 }}>
+    <form role="search" onSubmit={submit} className="gc-search">
       <input
         data-testid="search-input"
         type="search"
@@ -49,26 +49,9 @@ export function SearchBar({ initialQuery = '', onSubmit }: SearchBarProps) {
         placeholder="Rechercher (tous les mois + archives)…"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        style={{
-          width: 320,
-          padding: '5px 8px',
-          border: '1px solid #D8DEE4',
-          borderRadius: 4,
-          font: 'inherit',
-        }}
+        className="gc-search__input"
       />
-      <button
-        type="submit"
-        data-testid="search-submit"
-        style={{
-          padding: '5px 12px',
-          border: '1px solid #2772A4',
-          borderRadius: 4,
-          background: '#2772A4',
-          color: '#FFFFFF',
-          cursor: 'pointer',
-        }}
-      >
+      <button type="submit" data-testid="search-submit" className="gc-search__submit">
         Rechercher
       </button>
     </form>
