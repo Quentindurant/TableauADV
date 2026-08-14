@@ -38,11 +38,10 @@ jobs:
       JWT_SECRET: secret-de-test-ci-non-utilise-en-production
       APP_URL: http://localhost:3000
       PORT: 3001
-      # En CI il n'y a pas de reverse proxy : le navigateur doit appeler l'API
-      # directement. La valeur vide (même origine) ne vaut qu'en production,
-      # derrière Apache. Voir apps/web/.env.example.
-      NEXT_PUBLIC_API_URL: http://localhost:3001
-      API_INTERNAL_URL: http://localhost:3001
+      # NEXT_PUBLIC_API_URL / API_INTERNAL_URL ne sont PAS définies ici : les
+      # tests unitaires du client HTTP vérifient les URL relatives (comportement
+      # de production, même origine derrière Apache). Elles sont fournies
+      # uniquement à l'étape de bout en bout, qui tourne sans reverse proxy.
 
     steps:
       - uses: actions/checkout@v4
@@ -89,6 +88,11 @@ jobs:
         run: pnpm --filter @suivi/web exec playwright install --with-deps chromium
 
       - name: Tests de bout en bout (navigateur)
+        # Sans reverse proxy, le navigateur et les Server Components doivent
+        # joindre l'API directement (cf. apps/web/.env.example).
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          API_INTERNAL_URL: http://localhost:3001
         run: pnpm --filter @suivi/web test:e2e
 
       - name: Conserver le rapport en cas d'échec
