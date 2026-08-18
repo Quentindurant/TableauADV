@@ -87,10 +87,18 @@ jobs:
       - name: Installer le navigateur Playwright
         run: pnpm --filter @suivi/web exec playwright install --with-deps chromium
 
+      # Requêtes simulées, aucun serveur : vérifie le comportement de
+      # production (URL relatives), donc SANS les variables d'API.
+      - name: Tests du client HTTP
+        env:
+          PLAYWRIGHT_NO_SERVERS: '1'
+        run: pnpm --filter @suivi/web exec playwright test api-client.spec.ts
+
       - name: Tests de bout en bout (navigateur)
         # Sans reverse proxy, le navigateur et les Server Components doivent
         # joindre l'API directement (cf. apps/web/.env.example).
         env:
+          E2E_NAVIGATEUR: '1'
           NEXT_PUBLIC_API_URL: http://localhost:3001
           API_INTERNAL_URL: http://localhost:3001
         run: pnpm --filter @suivi/web test:e2e

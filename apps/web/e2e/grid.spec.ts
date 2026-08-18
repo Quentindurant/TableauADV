@@ -43,6 +43,9 @@ test.describe('Grille de suivi des commandes', () => {
   test('le changement de statut affiche la couleur du choix', async ({ page }) => {
     await login(page);
     await page.locator('[data-testid="add-row"]').click();
+    // La ligne doit être rendue avant toute interaction : sans cette attente,
+    // le double-clic part avant que la grille ne l'ait insérée.
+    await expect(page.locator('.ag-center-cols-container .ag-row')).not.toHaveCount(0);
 
     const statutCell = cell(page, 'statut');
     await statutCell.dblclick();

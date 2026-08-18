@@ -20,6 +20,9 @@ test("l'en-tête affiche le nom de l'utilisateur connecté", async ({ page }) =>
 test('la déconnexion ramène sur /login et interdit le retour sur /', async ({ page }) => {
   await seConnecter(page);
 
+  // Depuis le template GC, la déconnexion vit dans le menu du compte : il faut
+  // l'ouvrir avant de cliquer.
+  await page.getByTestId('account-menu').locator('summary').click();
   await page.getByRole('button', { name: 'Se déconnecter' }).click();
   await expect(page).toHaveURL(/\/login$/);
 

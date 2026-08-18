@@ -10,7 +10,9 @@ test('mot de passe incorrect : message en français, on reste sur /login', async
   await page.getByLabel('Mot de passe').fill('mauvais-mot-de-passe');
   await page.getByRole('button', { name: 'Se connecter' }).click();
 
-  await expect(page.getByRole('alert')).toHaveText('E-mail ou mot de passe incorrect.');
+  // Ciblage précis : Next.js injecte son propre `role="alert"`
+  // (`__next-route-announcer__`), qui rendrait le sélecteur ambigu.
+  await expect(page.locator('p[role="alert"]')).toHaveText('E-mail ou mot de passe incorrect.');
   await expect(page).toHaveURL(/\/login$/);
 });
 
