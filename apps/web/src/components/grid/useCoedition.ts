@@ -158,7 +158,14 @@ export function useCoedition(
   // 4. Démontage : coupe le renouvellement de verrou, libère un verrou en
   // cours d'édition et marque le hook comme démonté pour toute continuation
   // asynchrone encore en vol (cf. onCellEditingStarted).
+  //
+  // Le drapeau est RÉARMÉ à chaque montage : React StrictMode (actif par
+  // défaut en dev sur l'App Router Next.js) monte, nettoie, puis REmonte les
+  // effets sur la même instance — les refs survivent. Sans ce réarmement, le
+  // hook se croirait démonté pour toujours dès le premier rendu et rendrait
+  // aussitôt tout verrou accordé.
   useEffect(() => {
+    disposedRef.current = false;
     return () => {
       disposedRef.current = true;
       if (renewTimer.current) {

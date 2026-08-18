@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import type { UserDTO } from '@suivi/shared';
 import {
@@ -264,6 +265,38 @@ describe('verrous d’édition', () => {
     expect(requestCellLock).toHaveBeenCalledWith('row1', 'client');
     expect(api.stopEditing).not.toHaveBeenCalled();
 
+    act(() => {
+      vi.advanceTimersByTime(LOCK_RENEW_INTERVAL_MS * 2);
+    });
+    expect(requestCellLock).toHaveBeenCalledTimes(3); // 1 demande + 2 renouvellements
+  });
+
+  // Régression e2e « coedition.spec.ts » : Alice ne voyait jamais
+  // `coedition-locked`. En développement — et `next dev` est ce que lance le
+  // harnais Playwright — Next.js active React StrictMode par défaut sur
+  // l'App Router, donc React monte, nettoie, puis REmonte les effets sur la
+  // MÊME instance : les `useRef` survivent. Un drapeau « démonté » posé au
+  // nettoyage et jamais réarmé au montage reste alors vrai pour toujours, et
+  // tout verrou accordé est relâché dans la milliseconde qui suit — le
+  // collègue voit `coedition-focus` mais jamais `coedition-locked`.
+  it('garde le verrou accordé après le double montage de StrictMode (dev)', async () => {
+    const api = fakeGridApi();
+    const { result } = renderHook(() => useCoedition('month', '2026-08', api as never), {
+      wrapper: StrictMode,
+    });
+
+    await act(async () => {
+      await result.current.onCellEditingStarted({
+        data: { id: 'row1' },
+        column: { getColId: () => 'client' },
+      } as never);
+    });
+
+    expect(requestCellLock).toHaveBeenCalledWith('row1', 'client');
+    // Le verrou accordé doit être CONSERVÉ : le relâcher aussitôt annule le
+    // `cell.lock` déjà diffusé aux collègues.
+    expect(releaseCellLock).not.toHaveBeenCalled();
+    // Et le renouvellement doit bien avoir démarré.
     act(() => {
       vi.advanceTimersByTime(LOCK_RENEW_INTERVAL_MS * 2);
     });
