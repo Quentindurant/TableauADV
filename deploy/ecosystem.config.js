@@ -30,7 +30,11 @@ module.exports = {
       max_memory_restart: '400M',
       env: {
         NODE_ENV: 'production',
-        PORT: '3001',
+        // 3101 et non 3001 : le VPS héberge d'autres applications et les ports
+        // 3000/3001 y sont déjà pris (notamment lea-numerique sur 3000).
+        // Le VirtualHost Apache suivie-appgcd.conf proxifie vers 3100/3101 :
+        // ces trois valeurs doivent rester cohérentes.
+        PORT: '3101',
       },
       error_file: '/var/log/pm2/suivi-api.error.log',
       out_file: '/var/log/pm2/suivi-api.out.log',
@@ -52,11 +56,11 @@ module.exports = {
       max_memory_restart: '600M',
       env: {
         NODE_ENV: 'production',
-        PORT: '3000',
+        PORT: '3100',
         // Appels serveur -> API des Server Components (URL absolue obligatoire).
         // NEXT_PUBLIC_API_URL reste vide en production (meme origine) et est lu
         // au build depuis apps/web/.env.
-        API_INTERNAL_URL: 'http://127.0.0.1:3001',
+        API_INTERNAL_URL: 'http://127.0.0.1:3101',
       },
       error_file: '/var/log/pm2/suivi-web.error.log',
       out_file: '/var/log/pm2/suivi-web.out.log',
