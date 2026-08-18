@@ -7,4 +7,7 @@ import { execSync } from 'node:child_process';
  */
 export default function globalSetup(): void {
   execSync('pnpm --filter @suivi/api exec prisma db seed', { stdio: 'inherit', cwd: '../..' });
+  // Comptes Alice et Bob utilisés par les scénarios de co-édition à deux
+  // navigateurs. Idempotent (upsert par e-mail), comme le seed principal.
+  execSync('pnpm --filter @suivi/api seed:e2e', { stdio: 'inherit', cwd: '../..' });
 }

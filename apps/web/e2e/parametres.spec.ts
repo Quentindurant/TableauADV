@@ -66,6 +66,9 @@ test.describe('Paramètres — listes & couleurs', () => {
 
       // 5. Retour à la grille : valeur renommée ET couleur appliquées.
       await page.goto('/');
+      // La grille doit être montée avant de chercher une cellule : sinon la
+      // recherche part sur une page encore vide.
+      await expect(page.locator('[data-testid="data-grid"]')).toBeVisible();
       const cellule = page.getByText('E2E APRES').first();
       await expect(cellule).toBeVisible();
 

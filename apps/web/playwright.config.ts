@@ -11,6 +11,12 @@ const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
 
 const config = defineConfig({
   testDir: './e2e',
+  // `api-client.spec.ts` simule `fetch` : il vérifie le comportement de
+  // PRODUCTION (URL relatives, même origine derrière Apache) et n'a besoin
+  // d'aucun serveur. Les scénarios navigateur, eux, tournent sans reverse
+  // proxy et exigent `NEXT_PUBLIC_API_URL`. Les deux sont donc exécutés
+  // séparément : E2E_NAVIGATEUR=1 exclut le premier.
+  testIgnore: process.env.E2E_NAVIGATEUR === '1' ? ['**/api-client.spec.ts'] : [],
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
