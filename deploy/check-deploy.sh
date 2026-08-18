@@ -62,16 +62,16 @@ check_ecosystem() {
     assert.strictEqual(api.cwd, "./apps/api", "suivi-api doit tourner dans apps/api (dotenv y lit .env)");
     assert.strictEqual(api.script, "dist/main.js");
     assert.strictEqual(api.env.NODE_ENV, "production");
-    assert.strictEqual(String(api.env.PORT), "3001");
+    assert.strictEqual(String(api.env.PORT), "3101");
     assert.strictEqual(web.cwd, "./apps/web");
     assert.strictEqual(web.script, "pnpm");
     assert.strictEqual(web.args, "start");
     assert.strictEqual(web.interpreter, "none", "pnpm est un exécutable, pas un script node");
     assert.strictEqual(web.env.NODE_ENV, "production");
-    assert.strictEqual(String(web.env.PORT), "3000");
+    assert.strictEqual(String(web.env.PORT), "3100");
     assert.ok(web.env.API_INTERNAL_URL, "suivi-web doit exposer API_INTERNAL_URL (appels serveur -> API)");
   ' "$ROOT"; then
-    ok "ecosystem.config.js : suivi-api (:3001) et suivi-web (:3000) conformes"
+    ok "ecosystem.config.js : suivi-api (:3101) et suivi-web (:3100) conformes"
   else
     fail "ecosystem.config.js : configuration PM2 non conforme (voir l'erreur node ci-dessus)"
   fi
@@ -96,15 +96,15 @@ check_vhost() {
     "vhost : en-tête X-Forwarded-Proto transmis à l'API"
   expect_grep "$f" 'RewriteCond %\{HTTP:Upgrade\} =websocket' \
     "vhost : condition de bascule WebSocket"
-  expect_grep "$f" 'RewriteRule .*ws://127\.0\.0\.1:3001/socket\.io/.*\[P' \
-    "vhost : tunnel WebSocket vers ws://127.0.0.1:3001/socket.io/ (mod_proxy_wstunnel)"
-  expect_grep "$f" 'ProxyPass[[:space:]]+/socket\.io/[[:space:]]+http://127\.0\.0\.1:3001/socket\.io/' \
-    "vhost : polling HTTP Socket.IO vers :3001"
-  expect_grep "$f" 'ProxyPass[[:space:]]+/api[[:space:]]+http://127\.0\.0\.1:3001/api' \
-    "vhost : /api vers :3001"
-  expect_grep "$f" 'ProxyPass[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3000/' \
-    "vhost : / vers Next.js :3000"
-  expect_grep "$f" 'ProxyPassReverse[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3000/' \
+  expect_grep "$f" 'RewriteRule .*ws://127\.0\.0\.1:3101/socket\.io/.*\[P' \
+    "vhost : tunnel WebSocket vers ws://127.0.0.1:3101/socket.io/ (mod_proxy_wstunnel)"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/socket\.io/[[:space:]]+http://127\.0\.0\.1:3101/socket\.io/' \
+    "vhost : polling HTTP Socket.IO vers :3101"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/api[[:space:]]+http://127\.0\.0\.1:3101/api' \
+    "vhost : /api vers :3101"
+  expect_grep "$f" 'ProxyPass[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3100/' \
+    "vhost : / vers Next.js :3100"
+  expect_grep "$f" 'ProxyPassReverse[[:space:]]+/[[:space:]]+http://127\.0\.0\.1:3100/' \
     "vhost : ProxyPassReverse sur la racine"
   expect_grep "$f" 'a2enmod .*proxy_wstunnel' \
     "vhost : commande a2enmod rappelée en commentaire"

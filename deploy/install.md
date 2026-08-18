@@ -188,7 +188,7 @@ l'API depuis le serveur et exigent une **URL absolue** : c'est le rôle de
 ```bash
 cat > ~/suivi-commandes/apps/web/.env <<'EOF'
 NEXT_PUBLIC_API_URL=
-API_INTERNAL_URL=http://127.0.0.1:3001
+API_INTERNAL_URL=http://127.0.0.1:3101
 EOF
 ```
 
@@ -298,8 +298,8 @@ Attendu : deux lignes `suivi-api` et `suivi-web` en statut `online`.
 Vérification locale, avant même Apache :
 
 ```bash
-curl -s http://127.0.0.1:3001/api/health
-curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3000/
+curl -s http://127.0.0.1:3101/api/health
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3100/
 ```
 
 Attendu : `{"status":"ok"}` puis `200` (ou `307` si la racine redirige vers
