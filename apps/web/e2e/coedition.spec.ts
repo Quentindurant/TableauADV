@@ -77,13 +77,14 @@ test.describe('Co-édition à deux navigateurs', () => {
     // 4. Le verrou est relâché à la fin de l'édition.
     await expect(cellA).not.toHaveClass(/coedition-locked/);
 
+    // Nettoyage AVANT la fermeture des contextes : `apiAlice` est rattaché au
+    // contexte d'Alice, il devient inutilisable une fois celui-ci fermé.
+    if (rowId) {
+      await apiAlice.delete(`${API_URL}/api/rows/${rowId}`);
+      rowId = '';
+    }
+
     await contextA.close();
     await contextB.close();
-  });
-
-  test.afterAll(async () => {
-    if (rowId && apiAlice) {
-      await apiAlice.delete(`${API_URL}/api/rows/${rowId}`);
-    }
   });
 });
