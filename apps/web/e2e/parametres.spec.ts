@@ -15,6 +15,11 @@ test.describe('Paramètres — listes & couleurs', () => {
   test('renommer un choix de statut et changer sa couleur se répercute dans la grille', async ({
     page,
   }) => {
+    // La vérification finale lit une cellule de la colonne « statut » (12e sur
+    // 16, 2550 px de colonnes) : AG Grid ne rend que les colonnes visibles,
+    // il faut donc une fenêtre assez large pour qu'elle existe dans le DOM.
+    await page.setViewportSize({ width: 2800, height: 900 });
+
     // 1. Session : le cookie est posé pour l'hôte « localhost », donc valable
     //    pour le front (:3000) comme pour l'API (:3001).
     const connexion = await page.request.post(`${API}/api/auth/login`, {

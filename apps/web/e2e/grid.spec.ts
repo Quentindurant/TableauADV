@@ -41,6 +41,10 @@ test.describe('Grille de suivi des commandes', () => {
   });
 
   test('le changement de statut affiche la couleur du choix', async ({ page }) => {
+    // AG Grid ne rend que les colonnes visibles. « statut » est la 12e sur 16
+    // (2550 px de colonnes au total) : sans une fenêtre assez large, la cellule
+    // n'existe tout simplement pas dans le DOM.
+    await page.setViewportSize({ width: 2800, height: 900 });
     await login(page);
     await page.locator('[data-testid="add-row"]').click();
     // La ligne doit être rendue avant toute interaction : sans cette attente,
