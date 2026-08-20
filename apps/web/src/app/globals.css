@@ -32,6 +32,11 @@
   --gc-surface-hover: #f5faf8;
   --gc-surface-alt: #f1f5f3;
   --gc-surface-sunken: #e9efed;
+  /* Repérage dans la grille : le survol de ligne doit rester lisible PAR-DESSUS
+     le zébrage (surface-alt), et le halo de colonne se superpose aux deux —
+     d'où une teinte pétrole translucide plutôt qu'une couleur pleine. */
+  --gc-row-hover: #e7f1ee;
+  --gc-col-hover: rgba(16, 53, 59, 0.05);
   --gc-border: #e4eae8;
   --gc-border-soft: #f1f5f3;
   --gc-cream: #f4f1ea;

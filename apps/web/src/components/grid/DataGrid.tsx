@@ -51,8 +51,12 @@ export const suiviTheme = themeQuartz.withParams({
   headerTextColor: 'var(--gc-muted-soft, #8FA09C)',
   headerFontWeight: 700,
   headerFontSize: 10.5,
-  oddRowBackgroundColor: 'var(--gc-surface-hover, #F5FAF8)',
-  rowHoverColor: 'var(--gc-surface-hover, #F5FAF8)',
+  // Zébrage un cran au-dessus du blanc, survol DISTINCT du zébrage (sinon le
+  // hover est invisible une ligne sur deux) et halo de colonne translucide :
+  // le croisement des deux guide l'œil jusqu'aux cellules en bas à droite.
+  oddRowBackgroundColor: 'var(--gc-surface-alt, #F1F5F3)',
+  rowHoverColor: 'var(--gc-row-hover, #E7F1EE)',
+  columnHoverColor: 'var(--gc-col-hover, rgba(16, 53, 59, 0.05))',
   selectedRowBackgroundColor: 'var(--gc-surface-sunken, #E9EFED)',
   // La virgule évite qu'AG Grid ne cite la valeur comme un nom de police.
   fontFamily: 'var(--gc-font), sans-serif',
@@ -361,6 +365,7 @@ export function DataGrid({ reload }: DataGridProps) {
           getRowId={(params: GetRowIdParams<RowDTO>) => params.data.id}
           defaultColDef={defaultColDef}
           singleClickEdit={false}
+          columnHoverHighlight={true}
           stopEditingWhenCellsLoseFocus
           rowDragManaged
           preventDefaultOnContextMenu
