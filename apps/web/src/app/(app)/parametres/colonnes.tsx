@@ -352,12 +352,6 @@ export default function ColonnesTab() {
         </tbody>
       </table>
 
-      <p>
-        Le type d’une colonne est modifiable à tout moment. Attention : l’API ne convertit pas
-        les valeurs déjà saisies — elles sont conservées telles quelles et réinterprétées par le
-        nouveau type.
-      </p>
-
       <form
         onSubmit={(evenement) => {
           void ajouter(evenement);
