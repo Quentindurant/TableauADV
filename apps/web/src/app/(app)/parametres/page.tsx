@@ -4,14 +4,16 @@ import { useState } from 'react';
 
 import ColonnesTab from './colonnes';
 import EquipeTab from './equipe';
+import ImportTab from './import';
 import ListesTab from './listes';
 
-export type OngletParametres = 'colonnes' | 'listes' | 'equipe';
+export type OngletParametres = 'colonnes' | 'listes' | 'equipe' | 'import';
 
 const ONGLETS: { id: OngletParametres; libelle: string }[] = [
   { id: 'colonnes', libelle: 'Colonnes' },
   { id: 'listes', libelle: 'Listes & couleurs' },
   { id: 'equipe', libelle: 'Équipe' },
+  { id: 'import', libelle: 'Import' },
 ];
 
 export default function ParametresPage() {
@@ -42,6 +44,7 @@ export default function ParametresPage() {
         {onglet === 'colonnes' && <ColonnesTab />}
         {onglet === 'listes' && <ListesTab />}
         {onglet === 'equipe' && <EquipeTab />}
+        {onglet === 'import' && <ImportTab />}
       </div>
     </main>
   );

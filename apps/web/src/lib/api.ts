@@ -4,6 +4,7 @@ import type {
   CellValue,
   ColumnDTO,
   ErrorCode,
+  ImportFusionReportDTO,
   MonthInfo,
   RowDTO,
   RowEventDTO,
@@ -72,7 +73,13 @@ function isApiError(body: unknown): body is ApiError {
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
-  if (init.body !== undefined && !headers.has('Content-Type')) {
+  // Un corps FormData (upload multipart) laisse le navigateur poser lui-même
+  // le Content-Type avec sa frontière ; tout autre corps est du JSON.
+  if (
+    init.body !== undefined &&
+    !(init.body instanceof FormData) &&
+    !headers.has('Content-Type')
+  ) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -248,4 +255,13 @@ export async function deleteRow(id: string): Promise<void> {
 
 export async function getRowEvents(id: string): Promise<RowEventDTO[]> {
   return apiFetch<RowEventDTO[]>(`/rows/${id}/events`);
+}
+
+// --- Import -----------------------------------------------------------------
+
+/** Import fusion du classeur Zoho : multipart `file`, rapport par onglet. */
+export async function importerClasseur(fichier: File): Promise<ImportFusionReportDTO> {
+  const corps = new FormData();
+  corps.append('file', fichier);
+  return apiFetch<ImportFusionReportDTO>('/import', { method: 'POST', body: corps });
 }
