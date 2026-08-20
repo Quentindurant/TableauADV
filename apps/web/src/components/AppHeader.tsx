@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import type { UserDTO } from '@suivi/shared';
 import { LogoutButton } from './LogoutButton';
@@ -16,8 +17,7 @@ export function AppHeader({ user }: AppHeaderProps) {
     <header data-testid="app-header" className="gc-topbar">
       {/* Retour au tableau depuis n'importe quelle page (Paramètres incluses). */}
       <Link href="/" className="gc-topbar__brand" data-testid="brand-home">
-        <span className="gc-topbar__eyebrow">Groupe GC</span>
-        <span className="gc-topbar__title">Suivi commandes</span>
+        <Image src="/gc-logo.png" alt="Groupe GC Développement — Suivi commandes" width={234} height={26} priority />
       </Link>
 
       <div className="gc-topbar__right">

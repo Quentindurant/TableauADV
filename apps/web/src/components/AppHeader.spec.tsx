@@ -32,7 +32,9 @@ beforeEach(() => {
 describe('AppHeader — barre du haut unifiée', () => {
   it('rend logo, recherche, présence et menu compte une seule fois', () => {
     render(<AppHeader user={user} />);
-    expect(screen.getAllByText('Suivi commandes')).toHaveLength(1);
+    // Logo image cliquable en guise de marque : il ramène à la grille.
+    const logo = screen.getByRole('img', { name: 'Groupe GC Développement — Suivi commandes' });
+    expect(logo.closest('a')?.getAttribute('href')).toBe('/');
     expect(screen.getAllByRole('search')).toHaveLength(1);
     expect(screen.getAllByTestId('presence-bar')).toHaveLength(1);
     expect(screen.getAllByTestId('account-menu')).toHaveLength(1);
