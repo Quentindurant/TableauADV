@@ -95,6 +95,39 @@ function indexChoices(columns: ColumnDTO[]): Record<string, ChoiceDTO[]> {
   return index;
 }
 
+/**
+ * Réapplique l'annuaire (nom affiché, couleur de curseur) sur les collègues
+ * présents.
+ *
+ * La liste de présence porte l'instantané de l'utilisateur pris à la connexion
+ * de SON socket (cf. RealtimeGateway) : elle n'est jamais réémise quand un
+ * collègue change son profil. Sans ce recollage, un changement de couleur de
+ * curseur ou de nom resterait invisible (avatar de la barre de présence,
+ * décorations de cellules) jusqu'à la reconnexion de l'intéressé.
+ *
+ * La référence d'origine est renvoyée telle quelle si rien ne change : inutile
+ * de déclencher un redessin AG Grid pour une liste identique.
+ */
+function applyDirectoryToPresence(presence: UserDTO[], users: UserDTO[]): UserDTO[] {
+  if (presence.length === 0) {
+    return presence;
+  }
+  const directory = new Map(users.map((user) => [user.id, user]));
+  let changed = false;
+  const refreshed = presence.map((present) => {
+    const known = directory.get(present.id);
+    if (
+      known === undefined ||
+      (known.displayName === present.displayName && known.cursorColor === present.cursorColor)
+    ) {
+      return present;
+    }
+    changed = true;
+    return { ...present, displayName: known.displayName, cursorColor: known.cursorColor };
+  });
+  return changed ? refreshed : presence;
+}
+
 function currentMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -174,7 +207,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   focuses: {},
   locks: {},
 
-  setUsers: (users) => set({ users }),
+  setUsers: (users) =>
+    set((state) => ({ users, presence: applyDirectoryToPresence(state.presence, users) })),
 
   setConnected: (connected) => set({ connected }),
 
