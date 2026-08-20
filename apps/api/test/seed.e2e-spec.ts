@@ -7,6 +7,12 @@ describe('Seed initial (idempotent)', () => {
   const prisma = new PrismaClient();
 
   beforeAll(async () => {
+    // Etat propre : la migration nom_tech_select_referentiel peut avoir créé des
+    // choix supplémentaires depuis les données existantes — les comptages ci-dessous
+    // ne portent que sur ce que le seed produit.
+    await prisma.row.deleteMany();
+    await prisma.choice.deleteMany();
+    await prisma.column.deleteMany();
     await seed(prisma);
     await seed(prisma); // rejouable : la 2e exécution ne doit rien dupliquer
   }, 60000);
@@ -23,13 +29,14 @@ describe('Seed initial (idempotent)', () => {
     expect(impe).toMatchObject({ label: 'IMPE', type: 'DATE', position: 0 });
   });
 
-  it('crée 83 choix (15 statuts + 41 partenaires + 14 tech + 10 CP + 3 matériel)', async () => {
-    expect(await prisma.choice.count()).toBe(83);
+  it('crée 91 choix (15 statuts + 41 partenaires + 14 tech + 8 noms tech + 10 CP + 3 matériel)', async () => {
+    expect(await prisma.choice.count()).toBe(91);
     const parCle = async (key: string) =>
       prisma.choice.count({ where: { column: { key } } });
     expect(await parCle('statut')).toBe(15);
     expect(await parCle('partenaire')).toBe(41);
     expect(await parCle('tech')).toBe(14);
+    expect(await parCle('nom_tech')).toBe(8);
     expect(await parCle('nom_cp')).toBe(10);
     expect(await parCle('materiel_recu')).toBe(3);
   });
@@ -76,6 +83,26 @@ describe('Seed initial (idempotent)', () => {
     expect(parLabel['ADWEB']).toMatchObject({ bgColor: null, textColor: '#229955', bold: true });
     expect(parLabel['VOSGES INFO']).toMatchObject({ bgColor: null, textColor: '#229955', bold: true });
     expect(parLabel['NETWORK']).toMatchObject({ bgColor: null, textColor: null, bold: false });
+  });
+
+  it('crée le référentiel techniciens : nom_tech en SELECT, choix colorés via pastelFor', async () => {
+    const nomTech = await prisma.column.findUniqueOrThrow({
+      where: { key: 'nom_tech' },
+      include: { choices: { orderBy: { position: 'asc' } } },
+    });
+    expect(nomTech).toMatchObject({ label: 'NOM TECH', type: 'SELECT', position: 9 });
+    expect(nomTech.choices.map((c) => c.label)).toEqual([
+      'ANTHONY', 'BENJAMIN', 'CHRISTOPHE', 'DAVID', 'FABIEN', 'JULIEN', 'MICKAEL',
+      'SEBASTIEN',
+    ]);
+    for (const choice of nomTech.choices) {
+      expect(choice).toMatchObject({
+        bgColor: pastelFor(choice.label).bg,
+        textColor: pastelFor(choice.label).text,
+        bold: false,
+        archived: false,
+      });
+    }
   });
 
   it("crée l'utilisateur initial une seule fois, avec un hash argon2 valide", async () => {

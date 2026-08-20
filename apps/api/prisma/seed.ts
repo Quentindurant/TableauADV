@@ -29,7 +29,7 @@ const COLUMNS: ColumnSeed[] = [
   // La spec garde l'heure en texte libre (« 14H », « 14h »...) : type TEXT, pas TIME.
   { key: 'heure',               label: 'HEURE',                            type: 'TEXT',     position: 7,  width: 90 },
   { key: 'tech',                label: 'TECH',                             type: 'SELECT',   position: 8,  width: 130 },
-  { key: 'nom_tech',            label: 'NOM TECH',                         type: 'TEXT',     position: 9,  width: 160 },
+  { key: 'nom_tech',            label: 'NOM TECH',                         type: 'SELECT',   position: 9,  width: 160 },
   { key: 'nom_cp',              label: 'NOM CP',                           type: 'SELECT',   position: 10, width: 130 },
   { key: 'statut',              label: 'INSTALLATION',                     type: 'SELECT',   position: 11, width: 150 },
   { key: 'commentaires_planif', label: 'COMMENTAIRES PLANIF',              type: 'LONGTEXT', position: 12, width: 320 },
@@ -94,6 +94,14 @@ const NOMS_CP: string[] = [
   'ADV', 'AURELIEN', 'DYLAN',
 ];
 
+// Référentiel techniciens : libellés neutres de départ pour une installation neuve,
+// couleurs pastel déterministes via pastelFor (même mécanique que la migration
+// `nom_tech_select_referentiel` qui construit ce référentiel depuis les données en prod).
+const NOMS_TECH: string[] = [
+  'ANTHONY', 'BENJAMIN', 'CHRISTOPHE', 'DAVID', 'FABIEN', 'JULIEN', 'MICKAEL',
+  'SEBASTIEN',
+];
+
 const MATERIEL_RECU: string[] = ['ENVOYE', 'LIVRE', 'POINT RELAIS'];
 
 async function upsertChoices(
@@ -135,7 +143,7 @@ export async function seed(prisma: PrismaClient): Promise<void> {
     });
   }
 
-  // 2. Choix des 5 listes — upsert par (columnId, label).
+  // 2. Choix des 6 listes — upsert par (columnId, label).
   await upsertChoices(prisma, 'statut', STATUTS);
   await upsertChoices(
     prisma,
@@ -156,6 +164,14 @@ export async function seed(prisma: PrismaClient): Promise<void> {
         return { label, bgColor: null, textColor: '#229955', bold: true };
       }
       return { label };
+    }),
+  );
+  await upsertChoices(
+    prisma,
+    'nom_tech',
+    NOMS_TECH.map((label) => {
+      const couleurs = pastelFor(label);
+      return { label, bgColor: couleurs.bg, textColor: couleurs.text, bold: false };
     }),
   );
   await upsertChoices(prisma, 'nom_cp', NOMS_CP.map((label) => ({ label })));
@@ -180,7 +196,7 @@ async function main(): Promise<void> {
   const prisma = new PrismaClient();
   try {
     await seed(prisma);
-    console.log('Seed terminé : 16 colonnes, 83 choix, 1 utilisateur.');
+    console.log('Seed terminé : 16 colonnes, 91 choix, 1 utilisateur.');
   } finally {
     await prisma.$disconnect();
   }
