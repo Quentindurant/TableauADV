@@ -14,10 +14,11 @@ export interface AppHeaderProps {
 export function AppHeader({ user }: AppHeaderProps) {
   return (
     <header data-testid="app-header" className="gc-topbar">
-      <div className="gc-topbar__brand">
+      {/* Retour au tableau depuis n'importe quelle page (Paramètres incluses). */}
+      <Link href="/" className="gc-topbar__brand" data-testid="brand-home">
         <span className="gc-topbar__eyebrow">Groupe GC</span>
         <span className="gc-topbar__title">Suivi commandes</span>
-      </div>
+      </Link>
 
       <div className="gc-topbar__right">
         <SearchBar />

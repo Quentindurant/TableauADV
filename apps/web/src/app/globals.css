@@ -222,6 +222,12 @@ th {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.gc-topbar__brand:hover .gc-topbar__title {
+  color: var(--gc-accent);
 }
 
 .gc-topbar__eyebrow {
