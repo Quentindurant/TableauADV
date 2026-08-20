@@ -62,7 +62,8 @@ interface BuiltRow {
 
 // ---------------------------------------------------------------- lecture
 
-function headersOf(worksheet: Worksheet): (string | null)[] {
+/** Exporté pour l'import fusion (fusion.service.ts) qui lit les mêmes feuilles. */
+export function headersOf(worksheet: Worksheet): (string | null)[] {
   const ligneEntete = worksheet.getRow(1);
   const largeur = Math.min(
     MAX_COLONNES,
@@ -239,7 +240,7 @@ export async function importWorkbook(
   };
 }
 
-interface CellsOutcome {
+export interface CellsOutcome {
   data: Record<string, string>;
   formats: Record<string, { bg: string }>;
   firstIsoDate: string | null;
@@ -248,7 +249,8 @@ interface CellsOutcome {
   empty: boolean;
 }
 
-function readRowCells(
+/** Exporté pour l'import fusion (fusion.service.ts) qui lit les mêmes feuilles. */
+export function readRowCells(
   worksheet: Worksheet,
   rowNumber: number,
   mapping: HeaderMapping,

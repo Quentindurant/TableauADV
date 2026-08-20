@@ -73,6 +73,18 @@ describe('construirePlanFusion', () => {
     expect(Object.keys(plan.misesAJour[0].patch)).not.toContain('commentaires_planif');
   });
 
+  it('ne réécrit jamais le nom client (clé de rapprochement) sur une correspondance', () => {
+    // 'Arcadia' et 'ARCADIA' se rapprochent par normalisation : la graphie
+    // en base est conservée, seule la vraie nouveauté (impe) est appliquée.
+    const plan = construirePlanFusion(
+      [ligneFichier(2, { client: 'Arcadia', impe: '2026-08-03' })],
+      [ligneBase('row-1', { client: 'ARCADIA' })],
+    );
+
+    expect(plan.misesAJour).toHaveLength(1);
+    expect(plan.misesAJour[0].patch).toEqual({ impe: '2026-08-03' });
+  });
+
   it('compte inchangée une ligne dont toutes les valeurs fichier sont déjà en base', () => {
     // 78 (nombre en base) et '78' (texte fichier) sont la même valeur.
     const plan = construirePlanFusion(

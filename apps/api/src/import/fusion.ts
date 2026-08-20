@@ -85,6 +85,11 @@ function patchDeFusion(
 ): Pick<MiseAJourPlanifiee, 'patch' | 'formats' | 'changedKeys'> {
   const patch: Record<string, string> = {};
   for (const [cle, valeur] of Object.entries(fichier.data)) {
+    // `client` est la clé de rapprochement : sur une correspondance, il ne
+    // diffère que par la graphie (casse/accents/espaces) — on conserve la base.
+    if (cle === 'client') {
+      continue;
+    }
     if (!memeValeur(valeur, base.data[cle])) {
       patch[cle] = valeur;
     }

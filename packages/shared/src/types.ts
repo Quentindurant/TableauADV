@@ -68,6 +68,33 @@ export interface MonthInfo {
   count: number;
 }
 
+/** Correspondance multiple relevée par l'import fusion : rien n'est modifié. */
+export interface ImportAmbiguiteDTO {
+  client: string;
+  raison: string;
+  /** Numéros de ligne Excel concernés (1 = en-tête). */
+  lignesFichier: number[];
+  /** Ids des lignes en base concernées. */
+  lignesBase: string[];
+}
+
+/** Rapport de fusion d'un onglet-mois du classeur importé. */
+export interface ImportOngletDTO {
+  mois: string;
+  creees: number;
+  misesAJour: number;
+  inchangees: number;
+  ambiguites: ImportAmbiguiteDTO[];
+  /** Valeurs hors listes de choix, importées telles quelles. */
+  horsListe: string[];
+}
+
+/** Rapport global de POST /api/import (fusion incrémentale, jamais de suppression). */
+export interface ImportFusionReportDTO {
+  parOnglet: ImportOngletDTO[];
+  erreurs: string[];
+}
+
 export type ErrorCode =
   | 'AUTH_INVALID'
   | 'AUTH_REQUIRED'
