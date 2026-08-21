@@ -164,6 +164,9 @@ describe('POST /api/import — fusion incrémentale (e2e)', () => {
       creees: 1,
       misesAJour: 1,
       inchangees: 0,
+      // La feuille fait foi : NOUVEAU CLIENT remonte en position 1, les
+      // lignes hors feuille (ambiguës + INTOUCHABLE) glissent après le bloc.
+      reordonnees: 4,
     });
     expect(rapport.parOnglet[0].ambiguites).toHaveLength(1);
     expect(rapport.parOnglet[0].ambiguites[0]).toMatchObject({
@@ -200,22 +203,55 @@ describe('POST /api/import — fusion incrémentale (e2e)', () => {
     const intouchable = await ctx.prisma.row.findUniqueOrThrow({ where: { id: ids.intouchableId } });
     expect(intouchable.data).toEqual({ client: 'INTOUCHABLE', tech: 'DIRECT' });
 
-    // NOUVEAU CLIENT : créée en fin de mois avec la valeur hors liste telle quelle.
+    // NOUVEAU CLIENT : créée avec la valeur hors liste telle quelle, placée
+    // selon la feuille (juste après ARCADIA).
     const nouvelle = await ctx.prisma.row.findFirstOrThrow({
       where: { month: '2026-08', data: { path: ['client'], equals: 'NOUVEAU CLIENT' } },
     });
-    expect(nouvelle.position).toBe(4);
+    expect(nouvelle.position).toBe(1);
     expect(nouvelle.archived).toBe(false);
     expect((nouvelle.data as Record<string, string>).statut).toBe('STATUT HORS LISTE');
 
-    // Temps réel APRÈS commit : un row.created (création) + un row.updated (fusion).
+    // Ordre final du mois = bloc feuille (ARCADIA, NOUVEAU CLIENT) puis les
+    // lignes hors feuille dans leur ordre relatif d'origine.
+    const ordonnees = await ctx.prisma.row.findMany({
+      where: { month: '2026-08' },
+      orderBy: { position: 'asc' },
+    });
+    expect(ordonnees.map((ligne) => (ligne.data as Record<string, string>).client)).toEqual([
+      'ARCADIA',
+      'NOUVEAU CLIENT',
+      'CABINET LATES',
+      'CABINET LATES',
+      'INTOUCHABLE',
+    ]);
+    expect(ordonnees.map((ligne) => ligne.position)).toEqual([0, 1, 2, 3, 4]);
+
+    // Le réordonnancement ne consigne aucun RowEvent (même précédent que le
+    // renumérotage du move manuel) et ne touche pas les versions.
+    expect(await ctx.prisma.rowEvent.count({ where: { type: 'move' } })).toBe(0);
+
+    // Temps réel APRÈS commit : un row.created (position finale) + un
+    // row.updated de fusion (ARCADIA) + un row.updated par ligne repositionnée
+    // (changedKeys vides, version intacte) — le contrat déjà digéré du front.
     expect(espionCreation).toHaveBeenCalledTimes(1);
-    expect(espionMaj).toHaveBeenCalledTimes(1);
+    expect(espionCreation.mock.calls[0][0].position).toBe(1);
+    expect(espionMaj).toHaveBeenCalledTimes(4);
     expect(espionMaj.mock.calls[0][0].id).toBe(ids.arcadiaId);
     expect(espionMaj.mock.calls[0][1]).toEqual(expect.arrayContaining(['impe', 'dpt']));
+    const repositionnees = espionMaj.mock.calls.slice(1);
+    expect(repositionnees.map(([dto]) => [dto.id, dto.position])).toEqual([
+      [ids.lates1, 2],
+      [ids.lates2, 3],
+      [ids.intouchableId, 4],
+    ]);
+    for (const [dto, changedKeys] of repositionnees) {
+      expect(changedKeys).toEqual([]);
+      expect(dto.version).toBe(0);
+    }
   });
 
-  it('est idempotent : rejouer le même fichier ne crée rien et ne modifie rien', async () => {
+  it('est idempotent : rejouer le même fichier ne crée rien, ne modifie rien, ne réordonne rien', async () => {
     await creerLignesDeBase();
 
     await request(ctx.app.getHttpServer())
@@ -224,6 +260,12 @@ describe('POST /api/import — fusion incrémentale (e2e)', () => {
       .attach('file', await classeurFusion(), 'classeur.xlsx')
       .expect(201);
 
+    const apresPremier = await ctx.prisma.row.findMany({
+      where: { month: '2026-08' },
+      orderBy: { position: 'asc' },
+      select: { id: true, position: true },
+    });
+
     const deuxieme = await request(ctx.app.getHttpServer())
       .post('/api/import')
       .set('Cookie', cookie)
@@ -231,7 +273,96 @@ describe('POST /api/import — fusion incrémentale (e2e)', () => {
       .expect(201);
 
     const rapport = deuxieme.body as ImportFusionReportDTO;
-    expect(rapport.parOnglet[0]).toMatchObject({ creees: 0, misesAJour: 0, inchangees: 2 });
+    expect(rapport.parOnglet[0]).toMatchObject({
+      creees: 0,
+      misesAJour: 0,
+      inchangees: 2,
+      reordonnees: 0,
+    });
     expect(await ctx.prisma.row.count({ where: { month: '2026-08' } })).toBe(5);
+
+    // L'ordre du mois est strictement inchangé au rejeu.
+    const apresSecond = await ctx.prisma.row.findMany({
+      where: { month: '2026-08' },
+      orderBy: { position: 'asc' },
+      select: { id: true, position: true },
+    });
+    expect(apresSecond).toEqual(apresPremier);
+  });
+
+  it("réordonne les lignes appariées selon la feuille, lignes hors fichier après le bloc et intactes", async () => {
+    // Base : ARCADIA(0), BRAVO(1), INTOUCHABLE(2) — la feuille liste BRAVO puis ARCADIA.
+    const arcadia = await ctx.prisma.row.create({
+      data: { month: '2026-08', position: 0, data: { client: 'ARCADIA' }, createdBy: userId },
+    });
+    const bravo = await ctx.prisma.row.create({
+      data: { month: '2026-08', position: 1, data: { client: 'BRAVO' }, createdBy: userId },
+    });
+    const intouchable = await ctx.prisma.row.create({
+      data: {
+        month: '2026-08',
+        position: 2,
+        data: { client: 'INTOUCHABLE', tech: 'DIRECT' },
+        createdBy: userId,
+      },
+    });
+
+    const workbook = new Workbook();
+    const feuille = workbook.addWorksheet('AOUT 2026');
+    feuille.addRow(ENTETE);
+    feuille.addRow([null, 'BRAVO', null, null, null, null, null, null, null, null, null, null, null, null, null, null]);
+    feuille.addRow([null, 'ARCADIA', null, null, null, null, null, null, null, null, null, null, null, null, null, null]);
+    const classeur = (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
+
+    const emitter = ctx.app.get(RealtimeEmitter);
+    const espionMaj = jest.spyOn(emitter, 'emitRowUpdated');
+    espionMaj.mockClear();
+
+    const premiere = await request(ctx.app.getHttpServer())
+      .post('/api/import')
+      .set('Cookie', cookie)
+      .attach('file', classeur, 'classeur.xlsx')
+      .expect(201);
+
+    expect((premiere.body as ImportFusionReportDTO).parOnglet[0]).toMatchObject({
+      creees: 0,
+      misesAJour: 0,
+      inchangees: 2,
+      reordonnees: 2,
+    });
+
+    // Ordre final : BRAVO, ARCADIA (feuille) puis INTOUCHABLE (hors fichier, intacte).
+    const ordonnees = await ctx.prisma.row.findMany({
+      where: { month: '2026-08' },
+      orderBy: { position: 'asc' },
+    });
+    expect(ordonnees.map((ligne) => ligne.id)).toEqual([bravo.id, arcadia.id, intouchable.id]);
+    expect(ordonnees.map((ligne) => ligne.position)).toEqual([0, 1, 2]);
+    // Contenu et versions intacts : seul `position` a bougé.
+    for (const ligne of ordonnees) {
+      expect(ligne.version).toBe(0);
+    }
+    expect(ordonnees[2].data).toEqual({ client: 'INTOUCHABLE', tech: 'DIRECT' });
+    expect(await ctx.prisma.rowEvent.count()).toBe(0);
+
+    // Deux row.updated de repositionnement (changedKeys vides), INTOUCHABLE muette.
+    expect(espionMaj).toHaveBeenCalledTimes(2);
+    expect(espionMaj.mock.calls.map(([dto, cles]) => [dto.id, dto.position, cles])).toEqual([
+      [bravo.id, 0, []],
+      [arcadia.id, 1, []],
+    ]);
+
+    // Rejeu : la base est déjà dans l'ordre feuille — zéro réordonnancement.
+    espionMaj.mockClear();
+    const seconde = await request(ctx.app.getHttpServer())
+      .post('/api/import')
+      .set('Cookie', cookie)
+      .attach('file', classeur, 'classeur.xlsx')
+      .expect(201);
+    expect((seconde.body as ImportFusionReportDTO).parOnglet[0]).toMatchObject({
+      inchangees: 2,
+      reordonnees: 0,
+    });
+    expect(espionMaj).not.toHaveBeenCalled();
   });
 });

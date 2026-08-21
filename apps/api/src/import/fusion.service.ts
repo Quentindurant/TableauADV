@@ -10,6 +10,7 @@ import { buildDiff, mergeData, mergeFormats } from '../rows/merge';
 import { toRowDTO } from '../rows/rows.mapper';
 import {
   construirePlanFusion,
+  construirePlanOrdre,
   type AmbiguitePlanifiee,
   type LigneFichier,
   type PlanFusion,
@@ -36,6 +37,8 @@ interface ResultatOnglet {
   majs: { row: Row; changedKeys: string[] }[];
   /** Lignes modifiées par une ADV pendant l'import : laissées intactes. */
   conflits: AmbiguitePlanifiee[];
+  /** Lignes dont la position a été réécrite (« la feuille fait foi »), état final. */
+  repositionnees: Row[];
 }
 
 /** Lit les lignes non vides d'une feuille mensuelle (même lecture que le CLI). */
@@ -160,11 +163,24 @@ export class ImportFusionService {
     );
 
     // APRÈS commit uniquement : diffusion dans la room `month:<YYYY-MM>`.
+    // Les lignes réordonnancées portent l'état FINAL (position réécrite) :
+    // elles remplacent l'instantané pris avant la passe d'ordre.
+    const finales = new Map(resultat.repositionnees.map((row) => [row.id, row]));
     for (const cree of resultat.creees) {
-      this.emitter.emitRowCreated(toRowDTO(cree));
+      this.emitter.emitRowCreated(toRowDTO(finales.get(cree.id) ?? cree));
     }
+    const dejaEmises = new Set(resultat.creees.map((cree) => cree.id));
     for (const { row, changedKeys } of resultat.majs) {
-      this.emitter.emitRowUpdated(toRowDTO(row), changedKeys, userId);
+      this.emitter.emitRowUpdated(toRowDTO(finales.get(row.id) ?? row), changedKeys, userId);
+      dejaEmises.add(row.id);
+    }
+    // Réordonnancement seul : même contrat que le renumérotage du move manuel
+    // (`row.updated`, changedKeys vides, version intacte) — déjà digéré par le
+    // front (`upsertRow` retrie par position), aucune modification front.
+    for (const row of resultat.repositionnees) {
+      if (!dejaEmises.has(row.id)) {
+        this.emitter.emitRowUpdated(toRowDTO(row), [], userId);
+      }
     }
 
     return {
@@ -172,6 +188,7 @@ export class ImportFusionService {
       creees: resultat.creees.length,
       misesAJour: resultat.majs.length,
       inchangees: resultat.plan.inchangees,
+      reordonnees: resultat.repositionnees.length,
       ambiguites: [...resultat.plan.ambiguites, ...resultat.conflits],
       horsListe: valeursHorsListe(resultat.plan, choix),
     };
@@ -180,7 +197,9 @@ export class ImportFusionService {
   /**
    * Applique le plan de fusion d'un onglet dans la transaction `tx` :
    * créations en fin de mois, mises à jour versionnées + RowEvent, ambiguïtés
-   * et lignes base absentes du fichier volontairement intactes.
+   * et lignes base absentes du fichier volontairement intactes, puis
+   * réordonnancement « la feuille fait foi » (positions réécrites uniquement
+   * quand elles changent, version intacte — même contrat que le move manuel).
    */
   private async appliquerPlan(
     tx: Prisma.TransactionClient,
@@ -270,6 +289,27 @@ export class ImportFusionService {
       majs.push({ row: enregistree, changedKeys: mise.changedKeys });
     }
 
-    return { plan, creees, majs, conflits };
+    // Réordonnancement dans la MÊME transaction : bloc feuille (appariées non
+    // ambiguës hors conflits + créées, numéro de ligne croissant) puis lignes
+    // hors fichier / ambiguës / en conflit dans leur ordre relatif actuel.
+    // Pas de RowEvent : même précédent que le renumérotage du move manuel.
+    const reecritures = construirePlanOrdre(
+      plan,
+      lignesActives.map((ligne) => ({ id: ligne.id, position: ligne.position })),
+      plan.creations.map((creation, index) => ({
+        id: creees[index].id,
+        position: creees[index].position,
+        numero: creation.numero,
+      })),
+      new Set(conflits.flatMap((conflit) => conflit.lignesBase)),
+    );
+    const repositionnees: Row[] = [];
+    for (const { rowId, position: cible } of reecritures) {
+      repositionnees.push(
+        await tx.row.update({ where: { id: rowId }, data: { position: cible } }),
+      );
+    }
+
+    return { plan, creees, majs, conflits, repositionnees };
   }
 }
