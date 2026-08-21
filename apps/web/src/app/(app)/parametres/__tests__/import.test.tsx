@@ -17,6 +17,7 @@ const RAPPORT: ImportFusionReportDTO = {
       creees: 2,
       misesAJour: 3,
       inchangees: 5,
+      reordonnees: 7,
       ambiguites: [
         {
           client: 'CABINET LATES',
@@ -27,7 +28,15 @@ const RAPPORT: ImportFusionReportDTO = {
       ],
       horsListe: ['valeur « X » hors liste pour la colonne statut (1 ligne(s)) — importée telle quelle'],
     },
-    { mois: '2026-09', creees: 0, misesAJour: 1, inchangees: 8, ambiguites: [], horsListe: [] },
+    {
+      mois: '2026-09',
+      creees: 0,
+      misesAJour: 1,
+      inchangees: 8,
+      reordonnees: 0,
+      ambiguites: [],
+      horsListe: [],
+    },
   ],
   erreurs: [],
 };
@@ -78,6 +87,8 @@ describe('ImportTab', () => {
     expect(ligne).toHaveTextContent('2');
     expect(ligne).toHaveTextContent('3');
     expect(ligne).toHaveTextContent('5');
+    expect(ligne).toHaveTextContent('7');
+    expect(compteurs.getByRole('columnheader', { name: 'Réordonnées' })).toBeInTheDocument();
     expect(compteurs.getByRole('row', { name: /2026-09/ })).toBeInTheDocument();
     // Tableau des ambiguïtés.
     expect(screen.getByText('CABINET LATES')).toBeInTheDocument();

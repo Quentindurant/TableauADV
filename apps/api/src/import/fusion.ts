@@ -45,11 +45,21 @@ export interface AmbiguitePlanifiee {
   lignesBase: string[];
 }
 
+/**
+ * Correspondance 1 ↔ 1 (modifiée OU inchangée) : matière première de l'ordre
+ * feuille — `numero` est le numéro de ligne Excel de la ligne fichier appariée.
+ */
+export interface AppariementPlanifie {
+  rowId: string;
+  numero: number;
+}
+
 export interface PlanFusion {
   creations: LigneFichier[];
   misesAJour: MiseAJourPlanifiee[];
   inchangees: number;
   ambiguites: AmbiguitePlanifiee[];
+  appariements: AppariementPlanifie[];
 }
 
 /**
@@ -122,7 +132,13 @@ export function construirePlanFusion(
   lignesFichier: readonly LigneFichier[],
   lignesBase: readonly LigneBase[],
 ): PlanFusion {
-  const plan: PlanFusion = { creations: [], misesAJour: [], inchangees: 0, ambiguites: [] };
+  const plan: PlanFusion = {
+    creations: [],
+    misesAJour: [],
+    inchangees: 0,
+    ambiguites: [],
+    appariements: [],
+  };
 
   const baseParClient = new Map<string, LigneBase[]>();
   for (const ligne of lignesBase) {
@@ -168,6 +184,7 @@ export function construirePlanFusion(
     }
 
     if (groupeFichier.length === 1 && groupeBase.length === 1) {
+      plan.appariements.push({ rowId: groupeBase[0].id, numero: groupeFichier[0].numero });
       const detail = patchDeFusion(groupeFichier[0], groupeBase[0]);
       if (detail.changedKeys.length === 0) {
         plan.inchangees += 1;
@@ -186,4 +203,73 @@ export function construirePlanFusion(
   }
 
   return plan;
+}
+
+/** Ligne du mois réduite à son identité et sa position actuelle. */
+export interface LigneOrdre {
+  id: string;
+  position: number;
+}
+
+/** Réécriture de position à appliquer (uniquement quand elle change). */
+export interface ReecriturePosition {
+  rowId: string;
+  position: number;
+}
+
+/**
+ * Ordre cible du mois après fusion : « la feuille fait foi ».
+ * - Bloc feuille : lignes appariées non ambiguës (hors conflits de version) et
+ *   lignes créées, position croissante selon le numéro de ligne fichier.
+ * - Bloc « après » : lignes base absentes du fichier, ambiguës ou en conflit,
+ *   dans leur ordre relatif actuel — contenu intact, jamais de suppression.
+ * Seules les positions qui changent sont retournées : base déjà dans l'ordre
+ * feuille (rejeu du même classeur) = zéro écriture.
+ */
+export function construirePlanOrdre(
+  plan: PlanFusion,
+  lignesBase: readonly LigneOrdre[],
+  creees: readonly (LigneOrdre & { numero: number })[],
+  idsEnConflit: ReadonlySet<string>,
+): ReecriturePosition[] {
+  const numeroParId = new Map<string, number>();
+  for (const appariement of plan.appariements) {
+    if (!idsEnConflit.has(appariement.rowId)) {
+      numeroParId.set(appariement.rowId, appariement.numero);
+    }
+  }
+
+  const blocFeuille: { id: string; numero: number }[] = creees.map((creee) => ({
+    id: creee.id,
+    numero: creee.numero,
+  }));
+  for (const ligne of lignesBase) {
+    const numero = numeroParId.get(ligne.id);
+    if (numero !== undefined) {
+      blocFeuille.push({ id: ligne.id, numero });
+    }
+  }
+  blocFeuille.sort((gauche, droite) => gauche.numero - droite.numero);
+
+  const idsBlocFeuille = new Set(blocFeuille.map((entree) => entree.id));
+  const ordre = [
+    ...blocFeuille.map((entree) => entree.id),
+    ...lignesBase.filter((ligne) => !idsBlocFeuille.has(ligne.id)).map((ligne) => ligne.id),
+  ];
+
+  const positionActuelle = new Map<string, number>();
+  for (const ligne of lignesBase) {
+    positionActuelle.set(ligne.id, ligne.position);
+  }
+  for (const creee of creees) {
+    positionActuelle.set(creee.id, creee.position);
+  }
+
+  const reecritures: ReecriturePosition[] = [];
+  for (let cible = 0; cible < ordre.length; cible += 1) {
+    if (positionActuelle.get(ordre[cible]) !== cible) {
+      reecritures.push({ rowId: ordre[cible], position: cible });
+    }
+  }
+  return reecritures;
 }

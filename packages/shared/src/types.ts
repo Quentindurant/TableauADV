@@ -84,6 +84,8 @@ export interface ImportOngletDTO {
   creees: number;
   misesAJour: number;
   inchangees: number;
+  /** Lignes dont la position a changé : « la feuille fait foi » pour l'ordre. */
+  reordonnees: number;
   ambiguites: ImportAmbiguiteDTO[];
   /** Valeurs hors listes de choix, importées telles quelles. */
   horsListe: string[];

@@ -85,6 +85,7 @@ export default function ImportTab() {
                 <th>Créées</th>
                 <th>Mises à jour</th>
                 <th>Inchangées</th>
+                <th>Réordonnées</th>
                 <th>Ambiguïtés</th>
               </tr>
             </thead>
@@ -95,6 +96,7 @@ export default function ImportTab() {
                   <td>{onglet.creees}</td>
                   <td>{onglet.misesAJour}</td>
                   <td>{onglet.inchangees}</td>
+                  <td>{onglet.reordonnees}</td>
                   <td>{onglet.ambiguites.length}</td>
                 </tr>
               ))}

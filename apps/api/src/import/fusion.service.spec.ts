@@ -97,3 +97,71 @@ describe('ImportFusionService — garde de version pendant la fusion', () => {
     );
   });
 });
+
+describe('ImportFusionService — réordonnancement « la feuille fait foi »', () => {
+  it('réécrit dans la transaction les seules positions qui changent, sans RowEvent ni version', async () => {
+    // Base : ARCADIA en 0, BRAVO en 1 — la feuille les liste dans l'ordre inverse.
+    const arcadia = ligneBase();
+    const bravo = { ...ligneBase(), id: 'r2', position: 1, data: { client: 'BRAVO' } };
+    const events = { record: jest.fn() } as unknown as RowEventsService;
+    const update = jest
+      .fn()
+      .mockImplementation(({ where, data }: { where: { id: string }; data: { position: number } }) =>
+        Promise.resolve({ ...(where.id === 'r1' ? arcadia : bravo), position: data.position }),
+      );
+    const tx = {
+      row: {
+        findMany: jest.fn().mockResolvedValue([arcadia, bravo]),
+        updateMany: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        update,
+      },
+    };
+
+    const service = creerService(events);
+    const resultat = await service['appliquerPlan'](
+      tx as never,
+      '2026-08',
+      [
+        { numero: 2, data: { client: 'BRAVO' }, formats: {} },
+        { numero: 3, data: { client: 'ARCADIA' }, formats: {} },
+      ],
+      'u1',
+    );
+
+    expect(update.mock.calls.map(([args]) => args)).toEqual([
+      { where: { id: 'r2' }, data: { position: 0 } },
+      { where: { id: 'r1' }, data: { position: 1 } },
+    ]);
+    expect(resultat.repositionnees.map((row) => [row.id, row.position])).toEqual([
+      ['r2', 0],
+      ['r1', 1],
+    ]);
+    // Lignes inchangées côté données : aucune écriture versionnée, aucun événement.
+    expect(tx.row.updateMany).not.toHaveBeenCalled();
+    expect(events.record).not.toHaveBeenCalled();
+  });
+
+  it('ne réécrit rien quand la base est déjà dans l’ordre feuille (rejeu)', async () => {
+    const events = { record: jest.fn() } as unknown as RowEventsService;
+    const tx = {
+      row: {
+        findMany: jest.fn().mockResolvedValue([ligneBase()]),
+        updateMany: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+
+    const service = creerService(events);
+    const resultat = await service['appliquerPlan'](
+      tx as never,
+      '2026-08',
+      [{ numero: 2, data: { client: 'ARCADIA' }, formats: {} }],
+      'u1',
+    );
+
+    expect(tx.row.update).not.toHaveBeenCalled();
+    expect(resultat.repositionnees).toEqual([]);
+  });
+});

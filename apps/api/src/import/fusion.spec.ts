@@ -1,8 +1,10 @@
 import {
   construirePlanFusion,
+  construirePlanOrdre,
   normaliserClient,
   type LigneBase,
   type LigneFichier,
+  type PlanFusion,
 } from './fusion';
 
 function ligneFichier(
@@ -219,5 +221,169 @@ describe('construirePlanFusion', () => {
 
     expect(plan.misesAJour).toHaveLength(0);
     expect(plan.inchangees).toBe(1);
+  });
+
+  it('consigne chaque appariement non ambigu (modifié OU inchangé) avec son numéro de ligne fichier', () => {
+    const plan = construirePlanFusion(
+      [
+        ligneFichier(2, { client: 'ARCADIA', impe: '2026-08-03' }),
+        ligneFichier(3, { client: 'IDENTIQUE' }),
+        ligneFichier(4, { client: 'NOUVEAU CLIENT' }),
+        ligneFichier(5, { client: 'AMBIGU' }),
+      ],
+      [
+        ligneBase('row-arcadia', { client: 'ARCADIA' }),
+        ligneBase('row-identique', { client: 'IDENTIQUE' }),
+        ligneBase('row-ambigu-1', { client: 'AMBIGU' }),
+        ligneBase('row-ambigu-2', { client: 'AMBIGU' }),
+      ],
+    );
+
+    // Les appariements couvrent la mise à jour ET l'inchangée, jamais
+    // l'ambiguïté ni la création : c'est la matière première de l'ordre feuille.
+    expect(plan.appariements).toEqual([
+      { rowId: 'row-arcadia', numero: 2 },
+      { rowId: 'row-identique', numero: 3 },
+    ]);
+  });
+});
+
+describe('construirePlanOrdre — « la feuille fait foi » pour l’ordre du mois', () => {
+  function planVide(): PlanFusion {
+    return { creations: [], misesAJour: [], inchangees: 0, ambiguites: [], appariements: [] };
+  }
+
+  it('mois vide : les créations prennent l’ordre feuille même si le plan les groupe par client', () => {
+    // Fichier : ligne 2 DOUBLON, ligne 3 AUTRE, ligne 4 DOUBLON.
+    // `construirePlanFusion` groupe par client : créations [2, 4, 3], donc
+    // positions à la création 0, 1, 2 — l'ordre feuille exige [2, 3, 4].
+    const reecritures = construirePlanOrdre(
+      planVide(),
+      [],
+      [
+        { id: 'c-2', position: 0, numero: 2 },
+        { id: 'c-4', position: 1, numero: 4 },
+        { id: 'c-3', position: 2, numero: 3 },
+      ],
+      new Set(),
+    );
+
+    // Réécritures triées par position cible ; c-2 est déjà en tête, intacte.
+    expect(reecritures).toEqual([
+      { rowId: 'c-3', position: 1 },
+      { rowId: 'c-4', position: 2 },
+    ]);
+  });
+
+  it('mélange : bloc feuille (appariées + créées, numéro croissant) puis lignes hors fichier dans leur ordre relatif', () => {
+    // Base : A(0), X(1, absente du fichier), B(2), AMB(3, ambigüe).
+    // Fichier : ligne 2 = B, ligne 3 = A, ligne 4 = création N.
+    const plan: PlanFusion = {
+      ...planVide(),
+      appariements: [
+        { rowId: 'row-b', numero: 2 },
+        { rowId: 'row-a', numero: 3 },
+      ],
+    };
+
+    const reecritures = construirePlanOrdre(
+      plan,
+      [
+        { id: 'row-a', position: 0 },
+        { id: 'row-x', position: 1 },
+        { id: 'row-b', position: 2 },
+        { id: 'row-amb', position: 3 },
+      ],
+      [{ id: 'row-n', position: 4, numero: 4 }],
+      new Set(),
+    );
+
+    // Ordre cible : B, A, N (feuille) puis X, AMB (ordre relatif actuel).
+    expect(reecritures).toEqual([
+      { rowId: 'row-b', position: 0 },
+      { rowId: 'row-a', position: 1 },
+      { rowId: 'row-n', position: 2 },
+      { rowId: 'row-x', position: 3 },
+      { rowId: 'row-amb', position: 4 },
+    ]);
+  });
+
+  it('aucune position ne change quand la base est déjà dans l’ordre feuille : zéro écriture', () => {
+    const plan: PlanFusion = {
+      ...planVide(),
+      appariements: [
+        { rowId: 'row-a', numero: 2 },
+        { rowId: 'row-b', numero: 3 },
+      ],
+    };
+
+    const reecritures = construirePlanOrdre(
+      plan,
+      [
+        { id: 'row-a', position: 0 },
+        { id: 'row-b', position: 1 },
+        { id: 'row-x', position: 2 },
+      ],
+      [],
+      new Set(),
+    );
+
+    expect(reecritures).toEqual([]);
+  });
+
+  it('est idempotent : rejouer le calcul sur l’ordre produit ne réécrit plus rien', () => {
+    const plan: PlanFusion = {
+      ...planVide(),
+      appariements: [
+        { rowId: 'row-b', numero: 2 },
+        { rowId: 'row-a', numero: 3 },
+      ],
+    };
+    const base = [
+      { id: 'row-a', position: 0 },
+      { id: 'row-x', position: 1 },
+      { id: 'row-b', position: 2 },
+    ];
+
+    const premieres = construirePlanOrdre(plan, base, [], new Set());
+    expect(premieres).not.toEqual([]);
+
+    // Applique les réécritures puis rejoue : la feuille et la base coïncident.
+    const positions = new Map(base.map((ligne) => [ligne.id, ligne.position]));
+    for (const { rowId, position } of premieres) {
+      positions.set(rowId, position);
+    }
+    const rejouee = [...positions]
+      .map(([id, position]) => ({ id, position }))
+      .sort((gauche, droite) => gauche.position - droite.position);
+
+    expect(construirePlanOrdre(plan, rejouee, [], new Set())).toEqual([]);
+  });
+
+  it('une ligne en conflit de version rejoint le bloc « après », sa ligne fichier est ignorée', () => {
+    // Fichier : ligne 2 = B, ligne 3 = A — mais A a été modifiée pendant
+    // l'import (garde de version) : elle reste après le bloc feuille.
+    const plan: PlanFusion = {
+      ...planVide(),
+      appariements: [
+        { rowId: 'row-b', numero: 2 },
+        { rowId: 'row-a', numero: 3 },
+      ],
+    };
+
+    const reecritures = construirePlanOrdre(
+      plan,
+      [
+        { id: 'row-a', position: 0 },
+        { id: 'row-b', position: 1 },
+      ],
+      [],
+      new Set(['row-a']),
+    );
+
+    expect(reecritures).toEqual([
+      { rowId: 'row-b', position: 0 },
+      { rowId: 'row-a', position: 1 },
+    ]);
   });
 });
