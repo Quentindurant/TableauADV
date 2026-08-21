@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import * as api from '../../../lib/api';
 import { useAppStore } from '../../../lib/store';
 import { DataGrid } from '../../../components/grid/DataGrid';
+import { FilterStatusBar } from '../../../components/grid/FilterStatusBar';
 import { messageForError } from '../../../components/grid/cellCommit';
 
 export default function ArchivesPage() {
@@ -56,6 +57,7 @@ export default function ArchivesPage() {
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="gc-toolbar">
         <strong className="gc-view-title">Archives</strong>
+        <FilterStatusBar />
         <button
           type="button"
           data-testid="back-to-months"

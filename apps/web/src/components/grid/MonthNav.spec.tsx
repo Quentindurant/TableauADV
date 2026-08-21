@@ -50,6 +50,17 @@ describe('helpers de mois', () => {
     expect(adjacentMonth(months, '2026-07', 1)).toBe('2026-08');
   });
 
+  it('adjacentMonth saute les trous de la liste (mois manquants)', () => {
+    const avecTrou: MonthInfo[] = [
+      { month: '2026-05', count: 1 },
+      { month: '2026-09', count: 3 },
+      { month: '2026-07', count: 2 },
+    ];
+    expect(adjacentMonth(avecTrou, '2026-07', 1)).toBe('2026-09');
+    expect(adjacentMonth(avecTrou, '2026-07', -1)).toBe('2026-05');
+    expect(adjacentMonth(avecTrou, '2026-09', -1)).toBe('2026-07');
+  });
+
   it('adjacentMonth rend null aux extrémités ou pour un mois inconnu', () => {
     expect(adjacentMonth(months, '2026-06', -1)).toBeNull();
     expect(adjacentMonth(months, '2026-08', 1)).toBeNull();
