@@ -142,6 +142,59 @@ describe('ImportFusionService — réordonnancement « la feuille fait foi »', 
     expect(events.record).not.toHaveBeenCalled();
   });
 
+  it('exclut du bloc feuille une ligne en conflit de version, sans bloquer le reste', async () => {
+    // Base : ARCADIA (pos 0), BRAVO (pos 1). La feuille inverse l'ordre et
+    // modifie les deux, mais ARCADIA a été modifiée par une ADV entre-temps
+    // (garde de version : count 0). Attendu : BRAVO seule est mise à jour et
+    // prend la tête (ordre feuille) ; ARCADIA rejoint le bloc « après » —
+    // position recalculée mais contenu jamais réécrit sur du périmé.
+    const arcadia = ligneBase();
+    const bravo = { ...ligneBase(), id: 'r2', position: 1, data: { client: 'BRAVO' } };
+    const events = { record: jest.fn() } as unknown as RowEventsService;
+    const bravoMaj = { ...bravo, data: { client: 'BRAVO', dpt: '2A' }, version: 4 };
+    const update = jest
+      .fn()
+      .mockImplementation(({ where, data }: { where: { id: string }; data: { position: number } }) =>
+        Promise.resolve({ ...(where.id === 'r1' ? arcadia : bravoMaj), position: data.position }),
+      );
+    const tx = {
+      row: {
+        findMany: jest.fn().mockResolvedValue([arcadia, bravo]),
+        updateMany: jest
+          .fn()
+          .mockImplementation(({ where }: { where: { id: string } }) =>
+            Promise.resolve({ count: where.id === 'r1' ? 0 : 1 }),
+          ),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(bravoMaj),
+        update,
+      },
+    };
+
+    const service = creerService(events);
+    const resultat = await service['appliquerPlan'](
+      tx as never,
+      '2026-08',
+      [
+        { numero: 2, data: { client: 'BRAVO', dpt: '2A' }, formats: {} },
+        { numero: 3, data: { client: 'ARCADIA', dpt: '49' }, formats: {} },
+      ],
+      'u1',
+    );
+
+    expect(resultat.conflits).toEqual([
+      expect.objectContaining({ client: 'ARCADIA', lignesBase: ['r1'] }),
+    ]);
+    expect(resultat.majs).toEqual([{ row: bravoMaj, changedKeys: ['dpt'] }]);
+    // Bloc feuille = BRAVO seule (tête) ; ARCADIA compactée derrière.
+    expect(update.mock.calls.map(([args]) => args)).toEqual([
+      { where: { id: 'r2' }, data: { position: 0 } },
+      { where: { id: 'r1' }, data: { position: 1 } },
+    ]);
+    // Un seul RowEvent : la mise à jour de BRAVO — jamais rien pour ARCADIA.
+    expect(events.record).toHaveBeenCalledTimes(1);
+    expect(events.record).toHaveBeenCalledWith(tx, expect.objectContaining({ rowId: 'r2' }));
+  });
+
   it('ne réécrit rien quand la base est déjà dans l’ordre feuille (rejeu)', async () => {
     const events = { record: jest.fn() } as unknown as RowEventsService;
     const tx = {
