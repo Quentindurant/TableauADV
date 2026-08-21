@@ -39,7 +39,32 @@ interface EtatSuppressionChoix {
   messageBlocage: string | null;
 }
 
-export default function ListesTab() {
+/** Clé de la colonne des techniciens terrain : gérée dans son propre onglet. */
+export const CLE_TECHNICIENS = 'nom_tech';
+
+/** Identités stables (défauts hors rendu) pour ne pas relancer `charger` à chaque rendu. */
+const AUCUNE_CLE: readonly string[] = [];
+const CLES_EXCLUES_LISTES: readonly string[] = [CLE_TECHNICIENS];
+
+export interface ProprietesGestionChoix {
+  /** Colonne unique à gérer : masque le sélecteur de colonnes. */
+  cleFixe?: string;
+  /** Clés retirées du sélecteur générique (référentiels à foyer dédié). */
+  clesExclues?: readonly string[];
+  ariaSection?: string;
+  titreAjout?: string;
+  libelleNouvelleValeur?: string;
+  boutonAjout?: string;
+}
+
+export function GestionChoix({
+  cleFixe,
+  clesExclues = AUCUNE_CLE,
+  ariaSection = 'Listes et couleurs',
+  titreAjout = 'Ajouter une valeur',
+  libelleNouvelleValeur = 'Nouvelle valeur',
+  boutonAjout = 'Ajouter la valeur',
+}: ProprietesGestionChoix) {
   const [colonnes, setColonnes] = useState<ColumnDTO[]>([]);
   const [colonneId, setColonneId] = useState('');
   const [choix, setChoix] = useState<ChoiceDTO[]>([]);
@@ -59,7 +84,13 @@ export default function ListesTab() {
     setChargement(true);
     try {
       const toutes = await apiFetch<ColumnDTO[]>('/columns');
-      const listes = trierParPosition(toutes.filter((colonne) => colonne.type === 'SELECT'));
+      const listes = trierParPosition(
+        toutes.filter(
+          (colonne) =>
+            colonne.type === 'SELECT' &&
+            (cleFixe === undefined ? !clesExclues.includes(colonne.key) : colonne.key === cleFixe),
+        ),
+      );
       setColonnes(listes);
       setColonneId((precedent) =>
         listes.some((colonne) => colonne.id === precedent) ? precedent : (listes[0]?.id ?? ''),
@@ -70,7 +101,7 @@ export default function ListesTab() {
     } finally {
       setChargement(false);
     }
-  }, []);
+  }, [cleFixe, clesExclues]);
 
   useEffect(() => {
     void charger();
@@ -240,26 +271,30 @@ export default function ListesTab() {
   };
 
   return (
-    <section aria-label="Listes et couleurs">
+    <section aria-label={ariaSection}>
       {erreur !== null && <p role="alert">{erreur}</p>}
       {info !== null && <p role="status">{info}</p>}
       {chargement && <p>Chargement des listes…</p>}
 
-      <label htmlFor="selecteur-colonne">Colonne de type liste</label>
-      <select
-        id="selecteur-colonne"
-        value={colonneId}
-        onChange={(evenement) => {
-          setColonneId(evenement.target.value);
-          setInfo(null);
-        }}
-      >
-        {colonnes.map((colonne) => (
-          <option key={colonne.id} value={colonne.id}>
-            {colonne.label}
-          </option>
-        ))}
-      </select>
+      {cleFixe === undefined && (
+        <>
+          <label htmlFor="selecteur-colonne">Colonne de type liste</label>
+          <select
+            id="selecteur-colonne"
+            value={colonneId}
+            onChange={(evenement) => {
+              setColonneId(evenement.target.value);
+              setInfo(null);
+            }}
+          >
+            {colonnes.map((colonne) => (
+              <option key={colonne.id} value={colonne.id}>
+                {colonne.label}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       <ul>
         {choix.map((element, index) => (
@@ -377,8 +412,8 @@ export default function ListesTab() {
           void ajouterValeur(evenement);
         }}
       >
-        <h3>Ajouter une valeur</h3>
-        <label htmlFor="nouvelle-valeur-label">Nouvelle valeur</label>
+        <h3>{titreAjout}</h3>
+        <label htmlFor="nouvelle-valeur-label">{libelleNouvelleValeur}</label>
         <input
           id="nouvelle-valeur-label"
           value={nouveauLabel}
@@ -411,7 +446,7 @@ export default function ListesTab() {
         >
           {nouveauLabel === '' ? 'Aperçu' : nouveauLabel}
         </span>
-        <button type="submit">Ajouter la valeur</button>
+        <button type="submit">{boutonAjout}</button>
       </form>
 
       {suppression !== null && (
@@ -448,4 +483,8 @@ export default function ListesTab() {
       )}
     </section>
   );
+}
+
+export default function ListesTab() {
+  return <GestionChoix clesExclues={CLES_EXCLUES_LISTES} />;
 }
