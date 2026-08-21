@@ -27,6 +27,8 @@ import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
 import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { RowContextMenu } from './RowContextMenu';
+import { RowDeleteDialog } from './RowDeleteDialog';
+import { supprimerLigne } from './rowDelete';
 import { RowHistoryPanel } from './RowHistoryPanel';
 import { useCoedition } from './useCoedition';
 import './coedition.css';
@@ -88,6 +90,7 @@ export function DataGrid({ reload }: DataGridProps) {
   const monthCourant = useAppStore((state) => state.monthCourant);
 
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const [ligneASupprimer, setLigneASupprimer] = useState<RowDTO | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [events, setEvents] = useState<RowEventDTO[]>([]);
@@ -410,11 +413,28 @@ export function DataGrid({ reload }: DataGridProps) {
           onToggleArchive={() =>
             void runAction(() => api.archiveRow(menu.row.id, !menu.row.archived))
           }
-          onDelete={() => void runAction(() => api.deleteRow(menu.row.id))}
+          onDelete={() => setLigneASupprimer(menu.row)}
           onShowHistory={() => void openHistory(menu.row)}
           onHighlight={(color) =>
             void commitHighlight(menu.row, menu.colKey, color, deps)
           }
+        />
+      ) : null}
+
+      {ligneASupprimer ? (
+        <RowDeleteDialog
+          row={ligneASupprimer}
+          onCancel={() => setLigneASupprimer(null)}
+          onConfirm={() => {
+            const rowId = ligneASupprimer.id;
+            setLigneASupprimer(null);
+            void supprimerLigne(rowId, {
+              deleteRow: api.deleteRow,
+              removeRow: useAppStore.getState().removeRow,
+              reload,
+              showToast: useAppStore.getState().showToast,
+            });
+          }}
         />
       ) : null}
 

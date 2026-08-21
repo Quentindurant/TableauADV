@@ -77,23 +77,12 @@ describe('RowContextMenu', () => {
     expect(screen.getByTestId('menu-archive').textContent).toBe('Désarchiver');
   });
 
-  it('demande confirmation en français avant de supprimer', async () => {
+  it('demande la suppression de la ligne et ferme le menu (confirmation portée par le parent)', async () => {
     const user = userEvent.setup();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const props = setup();
     await user.click(screen.getByTestId('menu-delete'));
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Supprimer définitivement cette ligne ? Cette action est irréversible.',
-    );
     expect(props.onDelete).toHaveBeenCalledTimes(1);
-  });
-
-  it('ne supprime rien si la confirmation est refusée', async () => {
-    const user = userEvent.setup();
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const props = setup();
-    await user.click(screen.getByTestId('menu-delete'));
-    expect(props.onDelete).not.toHaveBeenCalled();
+    expect(props.onClose).toHaveBeenCalledTimes(1);
   });
 
   it('ouvre l’historique et remonte un surlignage', async () => {
