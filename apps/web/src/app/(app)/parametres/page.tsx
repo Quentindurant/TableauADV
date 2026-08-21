@@ -6,12 +6,14 @@ import ColonnesTab from './colonnes';
 import EquipeTab from './equipe';
 import ImportTab from './import';
 import ListesTab from './listes';
+import TechniciensTab from './techniciens';
 
-export type OngletParametres = 'colonnes' | 'listes' | 'equipe' | 'import';
+export type OngletParametres = 'colonnes' | 'listes' | 'techniciens' | 'equipe' | 'import';
 
 const ONGLETS: { id: OngletParametres; libelle: string }[] = [
   { id: 'colonnes', libelle: 'Colonnes' },
   { id: 'listes', libelle: 'Listes & couleurs' },
+  { id: 'techniciens', libelle: 'Techniciens terrain' },
   { id: 'equipe', libelle: 'Équipe' },
   { id: 'import', libelle: 'Import' },
 ];
@@ -43,6 +45,7 @@ export default function ParametresPage() {
       <div role="tabpanel" id={`panneau-${onglet}`} aria-labelledby={`onglet-${onglet}`}>
         {onglet === 'colonnes' && <ColonnesTab />}
         {onglet === 'listes' && <ListesTab />}
+        {onglet === 'techniciens' && <TechniciensTab />}
         {onglet === 'equipe' && <EquipeTab />}
         {onglet === 'import' && <ImportTab />}
       </div>

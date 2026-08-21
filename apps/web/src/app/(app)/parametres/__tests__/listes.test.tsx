@@ -71,6 +71,17 @@ const COLONNE_CLIENT: ColumnDTO = {
   choices: [],
 };
 
+const COLONNE_NOM_TECH: ColumnDTO = {
+  id: 'col-nom-tech',
+  key: 'nom_tech',
+  label: 'NOM TECH',
+  type: 'SELECT',
+  position: 7,
+  width: 140,
+  visible: true,
+  choices: [choix({ id: 'ch-tech-1', label: 'MARC', columnId: 'col-nom-tech' })],
+};
+
 beforeEach(() => {
   apiFetchMock.mockReset();
 });
@@ -103,6 +114,17 @@ describe('ListesTab — sélection, pastilles et couleurs', () => {
     const selecteur = await screen.findByLabelText('Colonne de type liste');
     const options = Array.from(selecteur.querySelectorAll('option')).map((o) => o.textContent);
     expect(options).toEqual(['TECH', 'INSTALLATION']);
+  });
+
+  it('exclut la colonne des techniciens (nom_tech) du sélecteur générique', async () => {
+    apiFetchMock.mockResolvedValueOnce([COLONNE_STATUT, COLONNE_NOM_TECH, COLONNE_TECH]);
+
+    render(<ListesTab />);
+
+    const selecteur = await screen.findByLabelText('Colonne de type liste');
+    const options = Array.from(selecteur.querySelectorAll('option')).map((o) => o.textContent);
+    expect(options).toEqual(['TECH', 'INSTALLATION']);
+    expect(screen.queryByTestId('pastille-ch-tech-1')).not.toBeInTheDocument();
   });
 
   it('affiche les choix de la colonne sélectionnée, triés, avec leur pastille', async () => {

@@ -19,6 +19,24 @@ function cell(page: Page, colId: string) {
     .locator(`[col-id="${colId}"]`);
 }
 
+/**
+ * Supprime la première ligne via le menu contextuel puis le dialogue de
+ * confirmation. Sert aussi de nettoyage : chaque test retire la ligne qu'il
+ * a créée.
+ */
+async function supprimerPremiereLigne(page: Page, colId: string): Promise<void> {
+  const premiere = page.locator('.ag-center-cols-container .ag-row').first();
+  const rowId = await premiere.getAttribute('row-id');
+  await premiere.locator(`[col-id="${colId}"]`).click({ button: 'right' });
+  await page.locator('[data-testid="menu-delete"]').click();
+  await expect(page.locator('[data-testid="row-delete-dialog"]')).toBeVisible();
+  await page.locator('[data-testid="row-delete-confirm"]').click();
+  await expect(page.locator('[data-testid="row-delete-dialog"]')).toHaveCount(0);
+  await expect(
+    page.locator(`.ag-center-cols-container .ag-row[row-id="${rowId}"]`),
+  ).toHaveCount(0);
+}
+
 test.describe('Grille de suivi des commandes', () => {
   test('une édition de cellule texte survit à un rechargement', async ({ page }) => {
     await login(page);
@@ -38,6 +56,10 @@ test.describe('Grille de suivi des commandes', () => {
     await page.reload();
     await expect(page.locator('[data-testid="data-grid"]')).toBeVisible();
     await expect(cell(page, 'client')).toHaveText(value);
+
+    // Suppression de la ligne créée : vérifie le flux ET nettoie les données.
+    await supprimerPremiereLigne(page, 'client');
+    await expect(page.getByText(value)).toHaveCount(0);
   });
 
   test('le changement de statut affiche la couleur du choix', async ({ page }) => {
@@ -68,5 +90,8 @@ test.describe('Grille de suivi des commandes', () => {
     await expect(
       cell(page, 'statut').locator('[data-testid="select-pastille"]'),
     ).toHaveCSS('background-color', 'rgb(155, 222, 180)');
+
+    // Suppression de la ligne créée : vérifie le flux ET nettoie les données.
+    await supprimerPremiereLigne(page, 'statut');
   });
 });

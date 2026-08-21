@@ -17,6 +17,7 @@ export interface RowContextMenuProps {
   onInsertBelow: () => void;
   onMoveToMonth: (month: string) => void;
   onToggleArchive: () => void;
+  /** Demande de suppression : la confirmation est portée par le parent (dialogue). */
   onDelete: () => void;
   onShowHistory: () => void;
   onHighlight: (color: string | null) => void;
@@ -64,14 +65,6 @@ export function RowContextMenu({
   function run(action: () => void): void {
     action();
     onClose();
-  }
-
-  function askDelete(): void {
-    const confirmed = window.confirm(
-      'Supprimer définitivement cette ligne ? Cette action est irréversible.',
-    );
-    if (!confirmed) return;
-    run(onDelete);
   }
 
   return (
@@ -139,7 +132,7 @@ export function RowContextMenu({
         type="button"
         data-testid="menu-delete"
         style={{ ...itemStyle, color: 'var(--gc-danger)' }}
-        onClick={askDelete}
+        onClick={() => run(onDelete)}
       >
         Supprimer la ligne
       </button>
