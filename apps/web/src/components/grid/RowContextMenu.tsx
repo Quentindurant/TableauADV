@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { MonthInfo, RowDTO } from '@suivi/shared';
 import { HighlightPalette } from './HighlightPalette';
-import { formatMonthLabel } from './MonthTabs';
+import { formatMonthLabel } from './MonthNav';
 
 export interface RowContextMenuProps {
   row: RowDTO;

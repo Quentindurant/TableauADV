@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { DataGrid } from '../../components/grid/DataGrid';
-import { MonthTabs, latestMonth } from '../../components/grid/MonthTabs';
+import { MonthNav, latestMonth } from '../../components/grid/MonthNav';
+import { FilterStatusBar } from '../../components/grid/FilterStatusBar';
 import { messageForError } from '../../components/grid/cellCommit';
 
 export default function MoisPage() {
@@ -110,13 +111,15 @@ export default function MoisPage() {
         </button>
       </div>
 
-      <MonthTabs
+      <MonthNav
         months={months}
         current={monthCourant}
         onSelect={(month) => void selectMonth(month)}
         onCreate={(month) => void createMonth(month)}
         onOpenArchives={() => router.push('/archives')}
-      />
+      >
+        <FilterStatusBar />
+      </MonthNav>
     </div>
   );
 }

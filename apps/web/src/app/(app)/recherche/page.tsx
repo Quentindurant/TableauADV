@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import type { RowDTO } from '@suivi/shared';
 import * as api from '../../../lib/api';
 import { useAppStore } from '../../../lib/store';
-import { formatMonthLabel } from '../../../components/grid/MonthTabs';
+import { formatMonthLabel } from '../../../components/grid/MonthNav';
 import { messageForError } from '../../../components/grid/cellCommit';
 
 export function groupByMonth(rows: RowDTO[]): [string, RowDTO[]][] {

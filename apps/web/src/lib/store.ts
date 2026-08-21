@@ -63,6 +63,16 @@ export interface AppState {
   showToast: (message: string, kind?: ToastKind) => void;
   hideToast: () => void;
 
+  // --- filtres personnels de la grille (purement client) ---
+  /** Lignes visibles après filtres AG Grid (getDisplayedRowCount). */
+  displayedRowCount: number;
+  /** Au moins un filtre de colonne actif dans la grille. */
+  filtersActive: boolean;
+  /** Remise à zéro des filtres, branchée par DataGrid (setFilterModel(null)). */
+  clearFilters: () => void;
+  setFilterStatus: (displayedRowCount: number, filtersActive: boolean) => void;
+  setClearFilters: (fn: (() => void) | null) => void;
+
   // --- co-édition (Feature 7) ---
   /** Annuaire complet de l'équipe (GET /users), rechargé sur config.changed. */
   users: UserDTO[];
@@ -127,6 +137,9 @@ function applyDirectoryToPresence(presence: UserDTO[], users: UserDTO[]): UserDT
   });
   return changed ? refreshed : presence;
 }
+
+/** Avant le premier onGridReady (ou après démontage), la remise à zéro est inoffensive. */
+function noopClearFilters(): void {}
 
 function currentMonth(): string {
   const now = new Date();
@@ -199,6 +212,14 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   showToast: (message, kind = 'error') => set({ toast: { message, kind } }),
   hideToast: () => set({ toast: null }),
+
+  // --- filtres personnels de la grille (purement client) ---
+  displayedRowCount: 0,
+  filtersActive: false,
+  clearFilters: noopClearFilters,
+  setFilterStatus: (displayedRowCount, filtersActive) =>
+    set({ displayedRowCount, filtersActive }),
+  setClearFilters: (fn) => set({ clearFilters: fn ?? noopClearFilters }),
 
   // --- co-édition (Feature 7) ---
   users: [],

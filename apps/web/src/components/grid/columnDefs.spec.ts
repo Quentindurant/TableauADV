@@ -185,4 +185,18 @@ describe('buildColumnDefs', () => {
     const cellStyle = defs[1].cellStyle as (params: { data?: RowDTO }) => unknown;
     expect(cellStyle({ data: row })).toEqual({ backgroundColor: '#FFFF00' });
   });
+
+  it('active le filtre texte et le filtre flottant sur toutes les colonnes', () => {
+    for (const def of defs) {
+      expect(def.filter).toBe('agTextColumnFilter');
+      expect(def.floatingFilter).toBe(true);
+    }
+  });
+
+  it('filtre les colonnes date sur le format affiché JJ/MM/AAAA', () => {
+    const getter = defs[0].filterValueGetter as (params: { data?: RowDTO }) => unknown;
+    expect(getter({ data: row })).toBe('14/08/2026');
+    expect(getter({ data: undefined })).toBe('');
+    expect(defs[1].filterValueGetter).toBeUndefined();
+  });
 });
