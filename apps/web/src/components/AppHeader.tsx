@@ -32,6 +32,9 @@ export function AppHeader({ user }: AppHeaderProps) {
             <span data-testid="current-user">{user.displayName}</span>
           </summary>
           <div className="gc-account__menu">
+            <Link href="/aide" data-testid="account-help">
+              Aide
+            </Link>
             <Link href="/parametres" data-testid="account-profile">
               Profil et paramètres
             </Link>

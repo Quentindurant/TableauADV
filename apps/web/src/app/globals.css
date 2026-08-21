@@ -827,3 +827,254 @@ th {
   color: var(--gc-petrol);
   font-weight: 600;
 }
+
+/* --------------------------------------------------------- Page aide --- */
+/* Documentation intégrée : grandes cartes-sections séparées, chacune avec
+   son accent (orange / pétrole / violet) porté par --gc-aide-accent. */
+
+.gc-aide {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 22px 26px 42px;
+  scroll-behavior: smooth;
+}
+
+.gc-aide__intro {
+  margin: 4px 0 18px;
+  max-width: 640px;
+  color: var(--gc-muted);
+}
+
+.gc-aide__sommaire {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 26px;
+  max-width: 860px;
+}
+
+.gc-aide__sommaire a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-pill);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gc-aide__sommaire a:hover {
+  border-color: var(--gc-accent);
+  background: var(--gc-surface-hover);
+}
+
+.gc-aide__section {
+  max-width: 860px;
+  margin: 0 0 22px;
+  padding: 20px 24px 22px;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-left: 5px solid var(--gc-aide-accent, var(--gc-petrol));
+  border-radius: var(--gc-radius-lg);
+  box-shadow: var(--gc-shadow);
+  /* Cible d'ancre du sommaire : ne pas coller au bord haut du défilement. */
+  scroll-margin-top: 12px;
+}
+
+.gc-aide__section--orange {
+  --gc-aide-accent: var(--gc-accent);
+}
+
+.gc-aide__section--petrol {
+  --gc-aide-accent: var(--gc-petrol);
+}
+
+.gc-aide__section--violet {
+  --gc-aide-accent: var(--gc-violet);
+}
+
+.gc-aide__titre {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  font-size: 20px;
+  color: var(--gc-petrol);
+}
+
+.gc-aide__icone {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--gc-radius);
+  font-size: 19px;
+}
+
+/* Teinte du chip d'icône = accent de la section, très adouci. */
+.gc-aide__section--orange .gc-aide__icone {
+  background: rgba(240, 144, 72, 0.16);
+}
+
+.gc-aide__section--petrol .gc-aide__icone {
+  background: rgba(16, 53, 59, 0.1);
+}
+
+.gc-aide__section--violet .gc-aide__icone {
+  background: rgba(164, 111, 224, 0.16);
+}
+
+.gc-aide__liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.gc-aide__liste li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  padding: 9px 12px;
+  background: var(--gc-surface-alt);
+  border-radius: var(--gc-radius-sm);
+}
+
+.gc-aide__action {
+  color: var(--gc-petrol);
+  font-weight: 700;
+}
+
+.gc-aide__fleche {
+  color: var(--gc-aide-accent, var(--gc-muted));
+  font-weight: 800;
+}
+
+.gc-aide__effet {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Prise en main : étapes numérotées en petites cartes. */
+.gc-aide__etapes {
+  list-style: none;
+  counter-reset: aide-etape;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  font-size: 13.5px;
+}
+
+.gc-aide__etapes li {
+  counter-increment: aide-etape;
+  padding: 12px 14px;
+  background: var(--gc-surface-alt);
+  border-radius: var(--gc-radius);
+}
+
+.gc-aide__etapes li::before {
+  content: counter(aide-etape);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--gc-accent);
+  color: var(--gc-accent-ink);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gc-aide kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--gc-border);
+  border-bottom-width: 2px;
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Aperçu des couleurs de surlignage (couleurs MÉTIER, posées inline). */
+.gc-aide__pastilles {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+
+.gc-aide__pastille {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--gc-border);
+  border-radius: 50%;
+}
+
+.gc-aide__note {
+  margin: 0 0 12px;
+}
+
+.gc-aide__tableau {
+  overflow-x: auto;
+}
+
+.gc-aide table {
+  width: 100%;
+  font-size: 13px;
+  border-collapse: collapse;
+  background: var(--gc-surface);
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius);
+  overflow: hidden;
+}
+
+.gc-aide th {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--gc-border);
+  background: var(--gc-surface-alt);
+}
+
+.gc-aide tbody th[scope='row'] {
+  white-space: nowrap;
+  vertical-align: top;
+  background: transparent;
+  color: var(--gc-petrol);
+}
+
+.gc-aide td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--gc-border-soft);
+  vertical-align: top;
+}
+
+@media (max-width: 640px) {
+  .gc-aide {
+    padding: 16px 14px 32px;
+  }
+
+  .gc-aide__section {
+    padding: 16px 14px;
+  }
+
+  .gc-aide__titre {
+    font-size: 17px;
+  }
+}
