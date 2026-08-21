@@ -29,16 +29,28 @@ describe('Seed initial (idempotent)', () => {
     expect(impe).toMatchObject({ label: 'IMPE', type: 'DATE', position: 0 });
   });
 
-  it('crée 91 choix (15 statuts + 41 partenaires + 14 tech + 8 noms tech + 10 CP + 3 matériel)', async () => {
-    expect(await prisma.choice.count()).toBe(91);
+  it('crée 95 choix (19 statuts + 41 partenaires + 14 tech + 8 noms tech + 10 CP + 3 matériel)', async () => {
+    expect(await prisma.choice.count()).toBe(95);
     const parCle = async (key: string) =>
       prisma.choice.count({ where: { column: { key } } });
-    expect(await parCle('statut')).toBe(15);
+    expect(await parCle('statut')).toBe(19);
     expect(await parCle('partenaire')).toBe(41);
     expect(await parCle('tech')).toBe(14);
     expect(await parCle('nom_tech')).toBe(8);
     expect(await parCle('nom_cp')).toBe(10);
     expect(await parCle('materiel_recu')).toBe(3);
+  });
+
+  it('couvre le vocabulaire de statuts poussé et lu par Everlink', async () => {
+    const statut = await prisma.column.findUniqueOrThrow({
+      where: { key: 'statut' },
+      include: { choices: true },
+    });
+    const parLabel = Object.fromEntries(statut.choices.map((c) => [c.label, c]));
+    expect(parLabel['PORTA']).toMatchObject({ bgColor: '#C39BD3', bold: true });
+    expect(parLabel['TECHNIQUE']).toMatchObject({ bgColor: '#F1C40F' });
+    expect(parLabel['OPER']).toMatchObject({ bgColor: '#EBDEF0' });
+    expect(parLabel['PV']).toMatchObject({ bgColor: '#763E8D', textColor: '#FFFFFF' });
   });
 
   it('applique les couleurs exactes des statuts', async () => {

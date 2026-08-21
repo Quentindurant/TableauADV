@@ -55,6 +55,11 @@ const STATUTS: ChoiceSeed[] = [
   { label: 'A DISTANCE',  bgColor: null,      textColor: null,      bold: false },
   { label: 'ANNULEE',     bgColor: '#FF0000', textColor: '#000000', bold: true },
   { label: 'CLOTUREE',    bgColor: '#A6A6A6', textColor: '#ABEBC6', bold: false },
+  // Vocabulaire du classeur Zoho poussé/lu par Everlink (couleurs de la feuille).
+  { label: 'TECHNIQUE',   bgColor: '#F1C40F', textColor: '#000000', bold: true },
+  { label: 'OPER',        bgColor: '#EBDEF0', textColor: '#4A235A', bold: true },
+  { label: 'PORTA',       bgColor: '#C39BD3', textColor: '#4A235A', bold: true },
+  { label: 'PV',          bgColor: '#763E8D', textColor: '#FFFFFF', bold: true },
 ];
 
 // 41 partenaires (ordre de la spec §2.2). 6 couleurs figées de l'Excel,
