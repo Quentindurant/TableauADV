@@ -68,6 +68,10 @@ export function buildColumnDefs(
       suppressMovable: false,
       editable: true,
       sortable: false,
+      // Filtres PERSONNELS : purement côté client, chacun voit sa grille.
+      // Le filtre texte suffit partout (le set filter est Enterprise).
+      filter: 'agTextColumnFilter',
+      floatingFilter: true,
       valueGetter: (params: ValueGetterParams<RowDTO>) =>
         params.data ? (params.data.data[key] ?? null) : null,
       valueSetter: (params: ValueSetterParams<RowDTO>) => {
@@ -98,6 +102,9 @@ export function buildColumnDefs(
       def.cellEditor = DateCellEditor;
       def.valueFormatter = (params: ValueFormatterParams<RowDTO, CellValue>) =>
         formatDateFr(params.value ?? null);
+      // On filtre sur ce que l'utilisateur LIT (14/08/2026), pas sur l'ISO.
+      def.filterValueGetter = (params: ValueGetterParams<RowDTO>) =>
+        formatDateFr(params.data ? (params.data.data[key] ?? null) : null);
     } else if (column.type === 'NUMBER') {
       def.cellEditor = 'agNumberCellEditor';
     } else {

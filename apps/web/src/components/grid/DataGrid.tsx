@@ -154,7 +154,28 @@ export function DataGrid({ reload }: DataGridProps) {
 
   const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
     setGridApi(event.api);
+    // Filtres PERSONNELS (client) : la barre du bas déclenche la remise à
+    // zéro sans connaître le GridApi — le store porte le branchement.
+    useAppStore.getState().setClearFilters(() => event.api.setFilterModel(null));
   }, []);
+
+  // Compteur X / N : X depuis la grille (lignes affichées après filtres),
+  // N depuis le store. Rafraîchi sur filtre ET sur mutation du modèle
+  // (upsertRow de la co-édition, ajout/suppression de lignes…).
+  const syncFilterStatus = useCallback((event: { api: GridApi<RowDTO> }) => {
+    useAppStore
+      .getState()
+      .setFilterStatus(event.api.getDisplayedRowCount(), event.api.isAnyFilterPresent());
+  }, []);
+
+  useEffect(
+    () => () => {
+      const store = useAppStore.getState();
+      store.setClearFilters(null);
+      store.setFilterStatus(0, false);
+    },
+    [],
+  );
 
   const onCellClicked = useCallback((event: CellClickedEvent<RowDTO>) => {
     const colKey = event.column.getColId();
@@ -376,6 +397,8 @@ export function DataGrid({ reload }: DataGridProps) {
           enableCellTextSelection={true}
           ensureDomOrder={true}
           onGridReady={onGridReady}
+          onFilterChanged={syncFilterStatus}
+          onModelUpdated={syncFilterStatus}
           onCellValueChanged={onCellValueChanged}
           onColumnResized={onColumnResized}
           onColumnMoved={onColumnMoved}
