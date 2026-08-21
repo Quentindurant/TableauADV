@@ -42,4 +42,14 @@ describe('AppHeader — barre du haut unifiée', () => {
     expect(screen.getByTestId('account-profile').getAttribute('href')).toBe('/parametres');
     expect(screen.getByRole('button', { name: 'Se déconnecter' })).toBeTruthy();
   });
+
+  it('propose « Aide » au-dessus de « Profil et paramètres » dans le menu compte', () => {
+    render(<AppHeader user={user} />);
+    const aide = screen.getByTestId('account-help');
+    expect(aide.getAttribute('href')).toBe('/aide');
+    expect(aide.textContent).toBe('Aide');
+    // L'ordre des liens du menu : l'aide d'abord, le profil ensuite.
+    const liens = Array.from(screen.getByTestId('account-menu').querySelectorAll('a'));
+    expect(liens.map((lien) => lien.getAttribute('href'))).toEqual(['/aide', '/parametres']);
+  });
 });
