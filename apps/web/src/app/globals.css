@@ -500,6 +500,22 @@ th {
   font-weight: 800;
 }
 
+/* Compteur de dossiers et remise à zéro des filtres personnels. */
+
+.gc-count {
+  padding-left: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gc-muted);
+  white-space: nowrap;
+}
+
+.gc-monthnav__reset {
+  border-color: var(--gc-border);
+  background: var(--gc-surface);
+  color: var(--gc-petrol);
+}
+
 /* ------------------------------------------------- Boutons de service --- */
 
 .gc-btn-primary {
