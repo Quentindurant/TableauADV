@@ -8,13 +8,18 @@ import { useAppStore } from '../../../lib/store';
 import { formatMonthLabel } from '../../../components/grid/MonthTabs';
 import { messageForError } from '../../../components/grid/cellCommit';
 
-function groupByMonth(rows: RowDTO[]): [string, RowDTO[]][] {
+export function groupByMonth(rows: RowDTO[]): [string, RowDTO[]][] {
   const groups = new Map<string, RowDTO[]>();
   for (const row of rows) {
     const key = row.archived ? 'archives' : row.month;
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
-  return [...groups.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  // Mois les plus récents d'abord ; les archives ferment toujours la liste.
+  return [...groups.entries()].sort((a, b) => {
+    if (a[0] === 'archives') return 1;
+    if (b[0] === 'archives') return -1;
+    return b[0].localeCompare(a[0]);
+  });
 }
 
 function ResultatsRecherche() {
