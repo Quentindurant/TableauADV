@@ -27,7 +27,13 @@ module.exports = {
       autorestart: true,
       max_restarts: 10,
       restart_delay: 2000,
-      max_memory_restart: '400M',
+      // L'import du classeur Zoho complet monte à ~1 Go de RSS (mesuré le
+      // 31/08/2026 sur le fichier réel) : une limite plus basse fait tuer
+      // l'API par pm2 en pleine requête (502 côté ADV). Le tas V8 est plafonné
+      // sous la limite pm2 pour que Node fasse du GC plutôt que d'être SIGKILL,
+      // et qu'un vrai dépassement laisse une erreur lisible dans les logs.
+      max_memory_restart: '1536M',
+      node_args: '--max-old-space-size=1280',
       env: {
         NODE_ENV: 'production',
         // 3101 et non 3001 : le VPS héberge d'autres applications et les ports
