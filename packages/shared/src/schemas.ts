@@ -93,3 +93,9 @@ export const moveRowSchema = z.object({
  * et body de POST /months/report.
  */
 export const reportMonthSchema = z.object({ to: month });
+
+/**
+ * Paramètre de route `:month` : DELETE /months/:month et
+ * POST /months/:month/restore (corbeille des mois).
+ */
+export const monthParamSchema = z.object({ month });

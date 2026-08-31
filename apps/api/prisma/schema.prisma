@@ -68,6 +68,17 @@ model Row {
   @@index([month, archived])
 }
 
+/// Corbeille des mois supprimés : UN instantané par mois (écrasé à chaque
+/// nouvelle suppression). `rows` contient le tableau JSON complet des lignes
+/// actives supprimées (id, month, position, data, formats, version, archived,
+/// createdBy, createdAt) ; la restauration le consomme puis retire l'entrée.
+model MonthTrash {
+  month     String   @id
+  deletedAt DateTime @default(now())
+  count     Int
+  rows      Json
+}
+
 model RowEvent {
   id      String   @id @default(cuid())
   rowId   String

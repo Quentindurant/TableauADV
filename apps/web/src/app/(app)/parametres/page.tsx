@@ -6,9 +6,16 @@ import ColonnesTab from './colonnes';
 import EquipeTab from './equipe';
 import ImportTab from './import';
 import ListesTab from './listes';
+import MoisTab from './mois';
 import TechniciensTab from './techniciens';
 
-export type OngletParametres = 'colonnes' | 'listes' | 'techniciens' | 'equipe' | 'import';
+export type OngletParametres =
+  | 'colonnes'
+  | 'listes'
+  | 'techniciens'
+  | 'equipe'
+  | 'import'
+  | 'mois';
 
 const ONGLETS: { id: OngletParametres; libelle: string }[] = [
   { id: 'colonnes', libelle: 'Colonnes' },
@@ -16,6 +23,7 @@ const ONGLETS: { id: OngletParametres; libelle: string }[] = [
   { id: 'techniciens', libelle: 'Techniciens terrain' },
   { id: 'equipe', libelle: 'Équipe' },
   { id: 'import', libelle: 'Import' },
+  { id: 'mois', libelle: 'Mois' },
 ];
 
 export default function ParametresPage() {
@@ -48,6 +56,7 @@ export default function ParametresPage() {
         {onglet === 'techniciens' && <TechniciensTab />}
         {onglet === 'equipe' && <EquipeTab />}
         {onglet === 'import' && <ImportTab />}
+        {onglet === 'mois' && <MoisTab />}
       </div>
     </main>
   );

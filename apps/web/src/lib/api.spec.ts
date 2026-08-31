@@ -4,8 +4,10 @@ import {
   apiFetch,
   archiveRow,
   createRow,
+  deleteMonth,
   deleteRow,
   getColumns,
+  getCorbeille,
   getRowEvents,
   getRows,
   moveRow,
@@ -13,6 +15,7 @@ import {
   patchRow,
   reportMonth,
   reportPreview,
+  restoreMonth,
   searchRows,
 } from './api';
 
@@ -155,5 +158,47 @@ describe('routes', () => {
     expect(url).toBe('/api/months/report');
     expect(init.method).toBe('POST');
     expect(JSON.parse(String(init.body))).toEqual({ to: '2026-09' });
+  });
+
+  it('deleteMonth supprime les dossiers actifs du mois en DELETE', async () => {
+    const fetchMock = mockFetch(200, { deleted: 12 });
+    const result = await deleteMonth('2026-09');
+    expect(result).toEqual({ deleted: 12 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/months/2026-09');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('getCorbeille liste les mois supprimés restaurables', async () => {
+    const fetchMock = mockFetch(200, [
+      { month: '2026-09', deletedAt: '2026-08-31T10:00:00.000Z', count: 12 },
+    ]);
+    const corbeille = await getCorbeille();
+    expect(corbeille).toEqual([
+      { month: '2026-09', deletedAt: '2026-08-31T10:00:00.000Z', count: 12 },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/months/corbeille');
+    expect(init.method ?? 'GET').toBe('GET');
+  });
+
+  it('restoreMonth poste sur /months/:month/restore et rend le compte restauré', async () => {
+    const fetchMock = mockFetch(200, { restored: 12 });
+    const result = await restoreMonth('2026-09');
+    expect(result).toEqual({ restored: 12 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/months/2026-09/restore');
+    expect(init.method).toBe('POST');
+  });
+
+  it('restoreMonth propage le 409 VERSION_CONFLICT du mois déjà repeuplé', async () => {
+    mockFetch(409, {
+      code: 'VERSION_CONFLICT',
+      message: 'Le mois contient déjà des dossiers actifs.',
+    });
+    await expect(restoreMonth('2026-09')).rejects.toMatchObject({
+      code: 'VERSION_CONFLICT',
+      status: 409,
+    });
   });
 });

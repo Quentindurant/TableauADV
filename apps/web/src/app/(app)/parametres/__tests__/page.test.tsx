@@ -7,11 +7,12 @@ vi.mock('../listes', () => ({ default: () => <div>PANNEAU LISTES</div> }));
 vi.mock('../techniciens', () => ({ default: () => <div>PANNEAU TECHNICIENS</div> }));
 vi.mock('../equipe', () => ({ default: () => <div>PANNEAU EQUIPE</div> }));
 vi.mock('../import', () => ({ default: () => <div>PANNEAU IMPORT</div> }));
+vi.mock('../mois', () => ({ default: () => <div>PANNEAU MOIS</div> }));
 
 import ParametresPage from '../page';
 
 describe('ParametresPage — onglets', () => {
-  it('affiche les cinq onglets et ouvre « Colonnes » par défaut', () => {
+  it('affiche les six onglets et ouvre « Colonnes » par défaut', () => {
     render(<ParametresPage />);
 
     expect(screen.getByRole('heading', { name: 'Paramètres' })).toBeInTheDocument();
@@ -26,7 +27,8 @@ describe('ParametresPage — onglets', () => {
     );
     expect(screen.getByRole('tab', { name: 'Équipe' })).toHaveAttribute('aria-selected', 'false');
     expect(screen.getByRole('tab', { name: 'Import' })).toHaveAttribute('aria-selected', 'false');
-    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getByRole('tab', { name: 'Mois' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getAllByRole('tab')).toHaveLength(6);
     expect(screen.getByText('PANNEAU COLONNES')).toBeInTheDocument();
   });
 
@@ -49,6 +51,15 @@ describe('ParametresPage — onglets', () => {
     await utilisateur.click(screen.getByRole('tab', { name: 'Import' }));
     expect(screen.getByText('PANNEAU IMPORT')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Import' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('bascule sur « Mois »', async () => {
+    const utilisateur = userEvent.setup();
+    render(<ParametresPage />);
+
+    await utilisateur.click(screen.getByRole('tab', { name: 'Mois' }));
+    expect(screen.getByText('PANNEAU MOIS')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Mois' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('bascule sur « Listes & couleurs » puis « Équipe »', async () => {

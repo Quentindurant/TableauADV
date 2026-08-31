@@ -1,6 +1,14 @@
-import { Injectable } from '@nestjs/common';
+import { HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma, type Row } from '@prisma/client';
-import type { MonthInfo, ReportPreviewDTO, ReportResultDTO } from '@suivi/shared';
+import type {
+  MonthCorbeilleDTO,
+  MonthDeleteResultDTO,
+  MonthInfo,
+  MonthRestoreResultDTO,
+  ReportPreviewDTO,
+  ReportResultDTO,
+} from '@suivi/shared';
+import { ApiException, notFound } from '../common/api.exception';
 import { RowEventsService } from '../events/row-events.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RealtimeEmitter } from '../realtime/realtime.emitter';
@@ -9,6 +17,24 @@ import { RowsService } from '../rows/rows.service';
 
 /** Statuts terminaux : dossiers terminés, jamais repris au mois suivant. */
 const STATUTS_TERMINES = new Set(['CLOTUREE', 'ANNULEE']);
+
+/**
+ * Ligne telle que figée dans l'instantané `MonthTrash.rows` : la restauration
+ * réinsère À L'IDENTIQUE ids, positions, data, formats, version, createdBy et
+ * createdAt (ISO). `archived` est toujours false (seules les lignes actives
+ * sont supprimées) mais figure dans l'instantané par fidélité au contrat.
+ */
+interface LigneCorbeille {
+  id: string;
+  month: string;
+  position: number;
+  data: Prisma.JsonValue;
+  formats: Prisma.JsonValue;
+  version: number;
+  archived: boolean;
+  createdBy: string | null;
+  createdAt: string;
+}
 
 /**
  * Ligne candidate au report vers `to` : non clôturée/annulée ET dont la date
@@ -130,6 +156,127 @@ export class MonthsService {
     }
     await this.emitShifted(shiftedIds, userId);
     return { from, created: createdRows.length };
+  }
+
+  /**
+   * Supprime les lignes ACTIVES d'un mois (les archivées restent : elles
+   * vivent dans la vue Archives) et fige, dans la MÊME transaction, un
+   * instantané de corbeille — une seule entrée par mois, écrasée à chaque
+   * nouvelle suppression. La suppression des lignes efface leurs RowEvent en
+   * cascade : l'historique n'est PAS restauré. Mois sans ligne active :
+   * { deleted: 0 } sans toucher à un éventuel instantané existant.
+   */
+  async deleteMonth(month: string): Promise<MonthDeleteResultDTO> {
+    const deletedRows = await this.prisma.$transaction(async (tx) => {
+      const actives = await tx.row.findMany({
+        where: { month, archived: false },
+        orderBy: [{ position: 'asc' }, { createdAt: 'asc' }],
+      });
+      if (actives.length === 0) {
+        return [] as Row[];
+      }
+
+      const instantane: LigneCorbeille[] = actives.map((row) => ({
+        id: row.id,
+        month: row.month,
+        position: row.position,
+        data: row.data,
+        formats: row.formats,
+        version: row.version,
+        archived: row.archived,
+        createdBy: row.createdBy,
+        createdAt: row.createdAt.toISOString(),
+      }));
+      const rows = instantane as unknown as Prisma.InputJsonValue;
+      await tx.monthTrash.upsert({
+        where: { month },
+        create: { month, count: actives.length, rows },
+        update: { deletedAt: new Date(), count: actives.length, rows },
+      });
+      await tx.row.deleteMany({ where: { id: { in: actives.map((row) => row.id) } } });
+      return actives;
+    });
+
+    // APRÈS commit (contrat temps réel) : chaque grille ouverte sur le mois
+    // retire les lignes une à une via row.deleted, mécanisme déjà appliqué
+    // par le store front (applyRowDeleted).
+    for (const row of deletedRows) {
+      this.emitter.emitRowDeleted(row.id, month, false);
+    }
+    return { deleted: deletedRows.length };
+  }
+
+  /** Corbeille des mois supprimés, du plus récent au plus ancien. */
+  async corbeille(): Promise<MonthCorbeilleDTO[]> {
+    const entries = await this.prisma.monthTrash.findMany({
+      orderBy: { deletedAt: 'desc' },
+    });
+    return entries.map((entry) => ({
+      month: entry.month,
+      deletedAt: entry.deletedAt.toISOString(),
+      count: entry.count,
+    }));
+  }
+
+  /**
+   * Restaure un mois depuis son instantané de corbeille, en UNE transaction :
+   * réinsertion à l'identique (ids, positions, data, formats, version,
+   * createdBy, createdAt), un RowEvent 'create' par ligne attribué à
+   * l'utilisateur courant (l'historique d'origine a été effacé en cascade à
+   * la suppression), puis retrait de l'entrée de corbeille. Si le mois
+   * contient DÉJÀ des lignes actives : 409 VERSION_CONFLICT, rien n'est
+   * modifié. Sans instantané : 404.
+   */
+  async restoreMonth(month: string, userId: string): Promise<MonthRestoreResultDTO> {
+    const restoredRows = await this.prisma.$transaction(async (tx) => {
+      const trash = await tx.monthTrash.findUnique({ where: { month } });
+      if (trash === null) {
+        throw notFound('Aucun instantané de corbeille pour ce mois.');
+      }
+      const actives = await tx.row.count({ where: { month, archived: false } });
+      if (actives > 0) {
+        throw new ApiException(
+          'VERSION_CONFLICT',
+          'Le mois contient déjà des lignes actives : restauration refusée.',
+          HttpStatus.CONFLICT,
+          { month, activeCount: actives },
+        );
+      }
+
+      const lignes = trash.rows as unknown as LigneCorbeille[];
+      const rows: Row[] = [];
+      for (const ligne of lignes) {
+        const row = await tx.row.create({
+          data: {
+            id: ligne.id,
+            month: ligne.month,
+            position: ligne.position,
+            data: ligne.data as Prisma.InputJsonValue,
+            formats: ligne.formats as Prisma.InputJsonValue,
+            version: ligne.version,
+            archived: ligne.archived,
+            createdBy: ligne.createdBy,
+            createdAt: new Date(ligne.createdAt),
+          },
+        });
+        await this.events.record(tx, {
+          rowId: row.id,
+          userId,
+          type: 'create',
+          payload: { restauredDe: 'corbeille', month },
+        });
+        rows.push(row);
+      }
+      await tx.monthTrash.delete({ where: { month } });
+      return rows;
+    });
+
+    // APRÈS commit : les grilles ouvertes sur le mois réaffichent les lignes
+    // via row.created (upsert idempotent côté store front).
+    for (const row of restoredRows) {
+      this.emitter.emitRowCreated(toRowDTO(row));
+    }
+    return { restored: restoredRows.length };
   }
 
   /** Dernier mois actif strictement avant `to` (tri lexicographique = chronologique). */

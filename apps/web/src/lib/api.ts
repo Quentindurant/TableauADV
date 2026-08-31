@@ -228,6 +228,41 @@ export async function reportMonth(to: string): Promise<ReportResultDTO> {
   return apiFetch<ReportResultDTO>('/months/report', jsonBody('POST', { to }));
 }
 
+/** Entrée de la corbeille : instantané d'un mois supprimé, restaurable. */
+export interface CorbeilleEntryDTO {
+  month: string;
+  /** Date ISO de la suppression. */
+  deletedAt: string;
+  /** Nombre de dossiers conservés dans l'instantané. */
+  count: number;
+}
+
+/**
+ * Supprime les dossiers ACTIFS du mois (les archivés restent visibles dans la
+ * vue Archives) et enregistre l'instantané de corbeille du mois.
+ */
+export async function deleteMonth(month: string): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>(`/months/${encodeURIComponent(month)}`, {
+    method: 'DELETE',
+  });
+}
+
+/** Mois supprimés restaurables, du plus récent au plus ancien. */
+export async function getCorbeille(): Promise<CorbeilleEntryDTO[]> {
+  return apiFetch<CorbeilleEntryDTO[]>('/months/corbeille');
+}
+
+/**
+ * Réinsère les dossiers de l'instantané puis retire l'entrée de corbeille.
+ * 409 VERSION_CONFLICT si le mois contient déjà des dossiers actifs.
+ */
+export async function restoreMonth(month: string): Promise<{ restored: number }> {
+  return apiFetch<{ restored: number }>(
+    `/months/${encodeURIComponent(month)}/restore`,
+    { method: 'POST' },
+  );
+}
+
 // --- Lignes -----------------------------------------------------------------
 
 export async function getRows(

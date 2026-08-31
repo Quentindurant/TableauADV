@@ -84,6 +84,27 @@ export interface ReportResultDTO {
   created: number;
 }
 
+/** Résultat de la suppression d'un mois (DELETE /api/months/:month). */
+export interface MonthDeleteResultDTO {
+  /** Nombre de lignes actives supprimées (0 si le mois n'en avait aucune). */
+  deleted: number;
+}
+
+/** Entrée de la corbeille des mois supprimés (GET /api/months/corbeille). */
+export interface MonthCorbeilleDTO {
+  month: string;
+  /** Date de la suppression, ISO 8601. */
+  deletedAt: string;
+  /** Nombre de lignes conservées dans l'instantané. */
+  count: number;
+}
+
+/** Résultat de la restauration d'un mois (POST /api/months/:month/restore). */
+export interface MonthRestoreResultDTO {
+  /** Nombre de lignes réinsérées depuis l'instantané. */
+  restored: number;
+}
+
 /** Correspondance multiple relevée par l'import fusion : rien n'est modifié. */
 export interface ImportAmbiguiteDTO {
   client: string;
