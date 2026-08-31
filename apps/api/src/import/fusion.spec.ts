@@ -180,6 +180,100 @@ describe('construirePlanFusion', () => {
     expect(plan.ambiguites).toHaveLength(0);
   });
 
+  it('départage par la date un groupe multiple : chaque paire unique devient une correspondance', () => {
+    const plan = construirePlanFusion(
+      [
+        ligneFichier(139, { client: 'ORPI', date: '2026-08-28', statut: 'INSTALLATION' }),
+        ligneFichier(140, { client: 'ORPI', date: '2026-09-07', dpt: '94', statut: 'ATT GC' }),
+      ],
+      [
+        ligneBase('row-a', { client: 'ORPI', date: '2026-08-28', statut: 'INSTALLATION' }),
+        ligneBase('row-b', { client: 'ORPI', date: '2026-09-07', dpt: '34', statut: 'ATT PV' }),
+      ],
+    );
+
+    expect(plan.ambiguites).toHaveLength(0);
+    expect(plan.creations).toHaveLength(0);
+    expect(plan.appariements).toEqual([
+      { rowId: 'row-a', numero: 139 },
+      { rowId: 'row-b', numero: 140 },
+    ]);
+    expect(plan.inchangees).toBe(1);
+    expect(plan.misesAJour).toHaveLength(1);
+    expect(plan.misesAJour[0].rowId).toBe('row-b');
+    expect(plan.misesAJour[0].patch).toEqual({ dpt: '94', statut: 'ATT GC' });
+  });
+
+  it('laisse en ambiguïté un groupe multiple sans date discriminante', () => {
+    const plan = construirePlanFusion(
+      [
+        ligneFichier(2, { client: 'ORPI', date: '2026-09-07' }),
+        ligneFichier(3, { client: 'ORPI', date: '2026-09-07' }),
+      ],
+      [
+        ligneBase('row-a', { client: 'ORPI', date: '2026-09-07' }),
+        ligneBase('row-b', { client: 'ORPI', date: '2026-09-07' }),
+      ],
+    );
+
+    expect(plan.misesAJour).toHaveLength(0);
+    expect(plan.appariements).toHaveLength(0);
+    expect(plan.ambiguites).toHaveLength(1);
+    expect(plan.ambiguites[0].lignesFichier).toEqual([2, 3]);
+    expect(plan.ambiguites[0].lignesBase).toEqual(['row-a', 'row-b']);
+  });
+
+  it('départage partiellement : la paire datée est appliquée, le reste consigné sans création', () => {
+    const plan = construirePlanFusion(
+      [
+        ligneFichier(2, { client: 'ORPI', date: '2026-08-28', heure: '10H' }),
+        ligneFichier(3, { client: 'ORPI', date: '2026-09-15', heure: '9H' }),
+      ],
+      [
+        ligneBase('row-a', { client: 'ORPI', date: '2026-08-28' }),
+        ligneBase('row-b', { client: 'ORPI', date: '2026-09-07' }),
+      ],
+    );
+
+    expect(plan.appariements).toEqual([{ rowId: 'row-a', numero: 2 }]);
+    expect(plan.misesAJour).toHaveLength(1);
+    expect(plan.misesAJour[0].rowId).toBe('row-a');
+    expect(plan.creations).toHaveLength(0);
+    expect(plan.ambiguites).toHaveLength(1);
+    expect(plan.ambiguites[0].lignesFichier).toEqual([3]);
+    expect(plan.ambiguites[0].lignesBase).toEqual(['row-b']);
+  });
+
+  it("une date en double du même côté ne départage rien", () => {
+    const plan = construirePlanFusion(
+      [
+        ligneFichier(2, { client: 'ORPI', date: '2026-09-07' }),
+        ligneFichier(3, { client: 'ORPI', date: '2026-09-07' }),
+      ],
+      [ligneBase('row-a', { client: 'ORPI', date: '2026-09-07' })],
+    );
+
+    expect(plan.appariements).toHaveLength(0);
+    expect(plan.misesAJour).toHaveLength(0);
+    expect(plan.ambiguites).toHaveLength(1);
+    expect(plan.ambiguites[0].lignesFichier).toEqual([2, 3]);
+    expect(plan.ambiguites[0].lignesBase).toEqual(['row-a']);
+  });
+
+  it('groupe multiple : les lignes base restantes après appariement restent intactes sans ambiguïté', () => {
+    const plan = construirePlanFusion(
+      [ligneFichier(2, { client: 'ORPI', date: '2026-08-28', heure: '10H' })],
+      [
+        ligneBase('row-a', { client: 'ORPI', date: '2026-08-28' }),
+        ligneBase('row-b', { client: 'ORPI', date: '2026-09-07' }),
+      ],
+    );
+
+    expect(plan.appariements).toEqual([{ rowId: 'row-a', numero: 2 }]);
+    expect(plan.misesAJour).toHaveLength(1);
+    expect(plan.ambiguites).toHaveLength(0);
+  });
+
   it('ne propose JAMAIS de suppression : les lignes base absentes du fichier restent hors du plan', () => {
     const plan = construirePlanFusion(
       [ligneFichier(2, { client: 'ARCADIA', impe: '2026-08-03' })],

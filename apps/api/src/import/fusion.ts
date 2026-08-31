@@ -84,6 +84,64 @@ function memeValeur(fichier: string, base: CellValue): boolean {
   return base !== null && base !== undefined && String(base) === fichier;
 }
 
+/** Date d'installation exploitable pour le départage : texte non vide. */
+function dateDe(valeur: unknown): string | null {
+  if (valeur === null || valeur === undefined) {
+    return null;
+  }
+  const texte = String(valeur).trim();
+  return texte === '' ? null : texte;
+}
+
+/**
+ * Départage d'un groupe multiple (même client) par la colonne `date` : une
+ * paire n'est retenue que si sa date est présente et unique DES DEUX côtés.
+ * Tout le reste (dates vides, en double, sans vis-à-vis) est laissé au
+ * traitement d'ambiguïté — jamais de création dans un groupe multiple, une
+ * ligne fichier restante pourrait être la même commande dont la date a changé.
+ */
+function apparierParDate(
+  groupeFichier: readonly LigneFichier[],
+  groupeBase: readonly LigneBase[],
+): {
+  paires: { fichier: LigneFichier; base: LigneBase }[];
+  fichierRestant: LigneFichier[];
+  baseRestante: LigneBase[];
+} {
+  const parDateFichier = new Map<string, LigneFichier[]>();
+  for (const ligne of groupeFichier) {
+    const date = dateDe(ligne.data['date']);
+    if (date !== null) {
+      parDateFichier.set(date, [...(parDateFichier.get(date) ?? []), ligne]);
+    }
+  }
+  const parDateBase = new Map<string, LigneBase[]>();
+  for (const ligne of groupeBase) {
+    const date = dateDe(ligne.data['date']);
+    if (date !== null) {
+      parDateBase.set(date, [...(parDateBase.get(date) ?? []), ligne]);
+    }
+  }
+
+  const paires: { fichier: LigneFichier; base: LigneBase }[] = [];
+  const fichierApparie = new Set<LigneFichier>();
+  const baseAppariee = new Set<LigneBase>();
+  for (const [date, lignesFichier] of parDateFichier) {
+    const lignesBase = parDateBase.get(date);
+    if (lignesFichier.length === 1 && lignesBase?.length === 1) {
+      paires.push({ fichier: lignesFichier[0], base: lignesBase[0] });
+      fichierApparie.add(lignesFichier[0]);
+      baseAppariee.add(lignesBase[0]);
+    }
+  }
+
+  return {
+    paires,
+    fichierRestant: groupeFichier.filter((ligne) => !fichierApparie.has(ligne)),
+    baseRestante: groupeBase.filter((ligne) => !baseAppariee.has(ligne)),
+  };
+}
+
 /**
  * Calcule le patch d'une correspondance : uniquement les champs non vides du
  * fichier absents ou différents en base. Les clés absentes du fichier
@@ -194,12 +252,29 @@ export function construirePlanFusion(
       continue;
     }
 
-    plan.ambiguites.push({
-      client,
-      raison: `${groupeFichier.length} ligne(s) fichier pour ${groupeBase.length} ligne(s) en base`,
-      lignesFichier: groupeFichier.map((ligne) => ligne.numero),
-      lignesBase: groupeBase.map((ligne) => ligne.id),
-    });
+    // Groupe multiple : tentative de départage par la date d'installation.
+    const departage = apparierParDate(groupeFichier, groupeBase);
+    for (const paire of departage.paires) {
+      plan.appariements.push({ rowId: paire.base.id, numero: paire.fichier.numero });
+      const detail = patchDeFusion(paire.fichier, paire.base);
+      if (detail.changedKeys.length === 0) {
+        plan.inchangees += 1;
+      } else {
+        plan.misesAJour.push({ rowId: paire.base.id, ...detail });
+      }
+    }
+
+    // Une ligne fichier non départagée reste une ambiguïté (jamais une
+    // création : ce pourrait être une commande dont la date a changé). Des
+    // lignes base restantes seules = absentes du fichier, donc intactes.
+    if (departage.fichierRestant.length > 0) {
+      plan.ambiguites.push({
+        client,
+        raison: `${departage.fichierRestant.length} ligne(s) fichier pour ${departage.baseRestante.length} ligne(s) en base non départagées par la date`,
+        lignesFichier: departage.fichierRestant.map((ligne) => ligne.numero),
+        lignesBase: departage.baseRestante.map((ligne) => ligne.id),
+      });
+    }
   }
 
   return plan;
