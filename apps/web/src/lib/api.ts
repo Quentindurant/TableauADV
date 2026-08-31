@@ -204,6 +204,30 @@ export async function getMonths(): Promise<MonthInfo[]> {
   return apiFetch<MonthInfo[]>('/months');
 }
 
+/** Aperçu du report vers `to` : `from` = dernier mois actif < `to` (null si aucun). */
+export interface ReportPreviewDTO {
+  from: string | null;
+  count: number;
+}
+
+/** Résultat du report : nombre de lignes créées dans le mois cible. */
+export interface ReportResultDTO {
+  from: string | null;
+  created: number;
+}
+
+/** Compte les dossiers repris si le mois `to` était créé. Ne modifie rien. */
+export async function reportPreview(to: string): Promise<ReportPreviewDTO> {
+  return apiFetch<ReportPreviewDTO>(
+    `/months/report-preview?to=${encodeURIComponent(to)}`,
+  );
+}
+
+/** Crée le mois `to` en recopiant les candidates du dernier mois actif. */
+export async function reportMonth(to: string): Promise<ReportResultDTO> {
+  return apiFetch<ReportResultDTO>('/months/report', jsonBody('POST', { to }));
+}
+
 // --- Lignes -----------------------------------------------------------------
 
 export async function getRows(

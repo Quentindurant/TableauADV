@@ -87,3 +87,9 @@ export const moveRowSchema = z.object({
   month: month.optional(),
   position: z.number().int('Position entière attendue').min(0).optional(),
 });
+
+/**
+ * Mois cible du report de dossiers : query de GET /months/report-preview
+ * et body de POST /months/report.
+ */
+export const reportMonthSchema = z.object({ to: month });

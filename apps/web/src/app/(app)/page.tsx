@@ -6,14 +6,24 @@ import * as api from '../../lib/api';
 import { useAppStore } from '../../lib/store';
 import { DataGrid } from '../../components/grid/DataGrid';
 import { MonthNav, latestMonth } from '../../components/grid/MonthNav';
+import { MonthReportDialog } from '../../components/grid/MonthReportDialog';
 import { FilterStatusBar } from '../../components/grid/FilterStatusBar';
 import { messageForError } from '../../components/grid/cellCommit';
+
+/** Report proposé à la création d'un mois : dialogue ouvert tant que non null. */
+interface ReportChoice {
+  to: string;
+  from: string;
+  count: number;
+}
 
 export default function MoisPage() {
   const router = useRouter();
   const monthCourant = useAppStore((state) => state.monthCourant);
   const months = useAppStore((state) => state.months);
   const [ready, setReady] = useState(false);
+  const [report, setReport] = useState<ReportChoice | null>(null);
+  const [reportBusy, setReportBusy] = useState(false);
 
   const reload = useCallback(async () => {
     const store = useAppStore.getState();
@@ -67,13 +77,77 @@ export default function MoisPage() {
     await reload();
   }
 
+  /** Recharge les mois puis affiche le mois nouvellement créé. */
+  async function openCreatedMonth(month: string): Promise<void> {
+    const store = useAppStore.getState();
+    store.setMonths(await api.getMonths());
+    store.setMonthCourant(month);
+    store.setRows(await api.getRows({ month }));
+  }
+
+  /** Création vide historique : une ligne vierge matérialise le mois. */
+  async function createEmptyMonth(month: string): Promise<void> {
+    await api.createRow({ month });
+    await openCreatedMonth(month);
+  }
+
   async function createMonth(month: string): Promise<void> {
     const store = useAppStore.getState();
     try {
-      await api.createRow({ month });
-      store.setMonths(await api.getMonths());
-      store.setMonthCourant(month);
-      store.setRows(await api.getRows({ month }));
+      const preview = await api.reportPreview(month);
+      if (preview.from !== null && preview.count > 0) {
+        setReport({ to: month, from: preview.from, count: preview.count });
+        return;
+      }
+      await createEmptyMonth(month);
+    } catch (error: unknown) {
+      store.showToast(messageForError(error), 'error');
+    }
+  }
+
+  /** « Reprendre » : report des candidates puis navigation vers le mois créé. */
+  async function confirmReport(): Promise<void> {
+    if (report === null) return;
+    const { to } = report;
+    const store = useAppStore.getState();
+    setReportBusy(true);
+    try {
+      await api.reportMonth(to);
+    } catch (error: unknown) {
+      store.showToast(messageForError(error), 'error');
+      setReportBusy(false);
+      return;
+    }
+    // Le report est acquis côté serveur : fermer avant la navigation, sinon
+    // un nouveau clic sur « Reprendre » dupliquerait les dossiers.
+    setReport(null);
+    setReportBusy(false);
+    try {
+      await openCreatedMonth(to);
+    } catch (error: unknown) {
+      store.showToast(messageForError(error), 'error');
+    }
+  }
+
+  /** « Créer vide » : flux historique, sans report. */
+  async function confirmEmpty(): Promise<void> {
+    if (report === null) return;
+    const { to } = report;
+    const store = useAppStore.getState();
+    setReportBusy(true);
+    try {
+      await api.createRow({ month: to });
+    } catch (error: unknown) {
+      store.showToast(messageForError(error), 'error');
+      setReportBusy(false);
+      return;
+    }
+    // La ligne est créée : fermer avant la navigation pour qu'un nouveau
+    // clic ne crée pas un second mois vide.
+    setReport(null);
+    setReportBusy(false);
+    try {
+      await openCreatedMonth(to);
     } catch (error: unknown) {
       store.showToast(messageForError(error), 'error');
     }
@@ -120,6 +194,18 @@ export default function MoisPage() {
       >
         <FilterStatusBar />
       </MonthNav>
+
+      {report !== null ? (
+        <MonthReportDialog
+          from={report.from}
+          to={report.to}
+          count={report.count}
+          busy={reportBusy}
+          onReport={() => void confirmReport()}
+          onCreateEmpty={() => void confirmEmpty()}
+          onCancel={() => setReport(null)}
+        />
+      ) : null}
     </div>
   );
 }

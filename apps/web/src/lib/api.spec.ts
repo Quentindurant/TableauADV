@@ -11,6 +11,8 @@ import {
   moveRow,
   patchColumn,
   patchRow,
+  reportMonth,
+  reportPreview,
   searchRows,
 } from './api';
 
@@ -134,5 +136,24 @@ describe('routes', () => {
     });
     expect(fetchMock.mock.calls[2][0]).toBe('/api/columns/col-1');
     expect((fetchMock.mock.calls[2][1] as RequestInit).method).toBe('PATCH');
+  });
+
+  it('reportPreview interroge le compte des candidates sans rien modifier', async () => {
+    const fetchMock = mockFetch(200, { from: '2026-08', count: 17 });
+    const preview = await reportPreview('2026-09');
+    expect(preview).toEqual({ from: '2026-08', count: 17 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/months/report-preview?to=2026-09');
+    expect(init.method ?? 'GET').toBe('GET');
+  });
+
+  it('reportMonth poste le mois cible et rend le compte créé', async () => {
+    const fetchMock = mockFetch(201, { from: '2026-08', created: 17 });
+    const result = await reportMonth('2026-09');
+    expect(result).toEqual({ from: '2026-08', created: 17 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('/api/months/report');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(String(init.body))).toEqual({ to: '2026-09' });
   });
 });

@@ -68,6 +68,22 @@ export interface MonthInfo {
   count: number;
 }
 
+/** Aperçu du report vers un nouveau mois (GET /api/months/report-preview). */
+export interface ReportPreviewDTO {
+  /** Dernier mois actif avant le mois cible, null si aucun (alors count = 0). */
+  from: string | null;
+  /** Nombre de dossiers qui seraient repris. */
+  count: number;
+}
+
+/** Résultat du report (POST /api/months/report). */
+export interface ReportResultDTO {
+  /** Mois source du report, null si aucun mois antérieur n'existait. */
+  from: string | null;
+  /** Nombre de dossiers recopiés (0 si une ligne vide a matérialisé le mois). */
+  created: number;
+}
+
 /** Correspondance multiple relevée par l'import fusion : rien n'est modifié. */
 export interface ImportAmbiguiteDTO {
   client: string;
