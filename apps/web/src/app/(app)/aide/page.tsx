@@ -15,11 +15,12 @@ export const metadata: Metadata = {
 
 /** Couleurs MÉTIER du surlignage, identiques à HighlightPalette.tsx. */
 const COULEURS_SURLIGNAGE: { label: string; value: string }[] = [
-  { label: 'Rouge', value: '#FF0000' },
-  { label: 'Jaune', value: '#FFFF00' },
-  { label: 'Vert', value: '#9BDEB4' },
+  { label: 'Rouge', value: '#EE7A6D' },
+  { label: 'Orange', value: '#F5B041' },
+  { label: 'Jaune', value: '#F7DC6F' },
+  { label: 'Vert', value: '#7DCEA0' },
   { label: 'Bleu', value: '#85C1E9' },
-  { label: 'Violet', value: '#C39BD3' },
+  { label: 'Violet', value: '#BB8FCE' },
 ];
 
 /** Sommaire et sections partagent cette liste : les ancres restent alignées. */
@@ -206,7 +207,8 @@ export default function AidePage() {
                 />
               ))}
             </span>
-            5 couleurs, «&nbsp;Effacer&nbsp;» retire le surlignage.
+            6 couleurs (IMPE&nbsp;: rouge et orange seulement), «&nbsp;Effacer&nbsp;» retire le
+            surlignage.
           </Action>
           <Action action={<kbd>Échap</kbd>}>ferme le menu.</Action>
         </ul>

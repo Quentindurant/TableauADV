@@ -151,7 +151,7 @@ export function RowContextMenu({
       >
         Surligner la colonne « {colKey} »
       </div>
-      <HighlightPalette onPick={(color) => run(() => onHighlight(color))} />
+      <HighlightPalette colKey={colKey} onPick={(color) => run(() => onHighlight(color))} />
     </div>
   );
 }

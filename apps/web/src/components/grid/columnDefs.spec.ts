@@ -65,7 +65,7 @@ const row: RowDTO = {
   month: '2026-08',
   position: 0,
   data: { impe: '2026-08-14', client: 'ARCADIA', statut: 'NEW' },
-  formats: { client: { bg: '#FFFF00' } },
+  formats: { client: { bg: '#F7DC6F' } },
   version: 1,
   archived: false,
   updatedAt: '2026-08-10T10:00:00.000Z',
@@ -104,7 +104,7 @@ describe('normalizeCellValue', () => {
 
 describe('cellStyleForRow', () => {
   it('applique le surlignage manuel de la ligne', () => {
-    expect(cellStyleForRow(row, 'client')).toEqual({ backgroundColor: '#FFFF00' });
+    expect(cellStyleForRow(row, 'client')).toEqual({ backgroundColor: '#F7DC6F' });
   });
 
   it('rend null sans surlignage ou sans ligne', () => {
@@ -183,7 +183,7 @@ describe('buildColumnDefs', () => {
 
   it('applique le surlignage manuel via cellStyle', () => {
     const cellStyle = defs[1].cellStyle as (params: { data?: RowDTO }) => unknown;
-    expect(cellStyle({ data: row })).toEqual({ backgroundColor: '#FFFF00' });
+    expect(cellStyle({ data: row })).toEqual({ backgroundColor: '#F7DC6F' });
   });
 
   it('active le filtre texte et le filtre flottant sur toutes les colonnes', () => {

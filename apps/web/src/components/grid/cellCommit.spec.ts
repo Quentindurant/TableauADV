@@ -156,17 +156,17 @@ describe('commitHighlight', () => {
   it('envoie un format de fond et l’applique optimistement', async () => {
     const server: RowDTO = {
       ...row,
-      formats: { num_chrono: { bg: '#9BDEB4' } },
+      formats: { num_chrono: { bg: '#7DCEA0' } },
       version: 4,
     };
     const patchRow = vi.fn(async () => server);
     const d = deps(patchRow);
 
-    await commitHighlight(row, 'num_chrono', '#9BDEB4', d);
+    await commitHighlight(row, 'num_chrono', '#7DCEA0', d);
 
     expect(patchRow).toHaveBeenCalledWith('row-1', {
       expectedVersion: 3,
-      formats: { num_chrono: { bg: '#9BDEB4' } },
+      formats: { num_chrono: { bg: '#7DCEA0' } },
     });
     expect(d.applyRowPatch).toHaveBeenNthCalledWith(2, 'row-1', {
       formats: server.formats,
@@ -199,7 +199,7 @@ describe('commitHighlight', () => {
     };
 
     // Ne doit pas lever d'exception
-    await commitHighlight(row, 'num_chrono', '#9BDEB4', d);
+    await commitHighlight(row, 'num_chrono', '#7DCEA0', d);
 
     // Premier toast : le message d'erreur du patchRow
     expect(d.showToast).toHaveBeenNthCalledWith(

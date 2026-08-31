@@ -42,7 +42,7 @@ function row(overrides: Partial<RowDTO> = {}): RowDTO {
     month: '2026-08',
     position: 0,
     data: { client: 'ARCADIA', statut: 'NEW' },
-    formats: { num_chrono: { bg: '#FFFF00' } },
+    formats: { num_chrono: { bg: '#F7DC6F' } },
     version: 3,
     archived: false,
     updatedAt: '2026-08-10T10:00:00.000Z',

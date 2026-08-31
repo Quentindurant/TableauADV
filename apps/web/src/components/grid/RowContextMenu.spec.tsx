@@ -90,8 +90,16 @@ describe('RowContextMenu', () => {
     const props = setup();
     await user.click(screen.getByTestId('menu-history'));
     expect(props.onShowHistory).toHaveBeenCalledTimes(1);
-    await user.click(screen.getByTestId('highlight-#FFFF00'));
-    expect(props.onHighlight).toHaveBeenCalledWith('#FFFF00');
+    await user.click(screen.getByTestId('highlight-#F7DC6F'));
+    expect(props.onHighlight).toHaveBeenCalledWith('#F7DC6F');
+  });
+
+  it('restreint la palette à la colonne du menu (IMPE : rouge et orange)', () => {
+    setup({ colKey: 'impe' });
+    expect(screen.getByTestId('highlight-#EE7A6D')).toBeInTheDocument();
+    expect(screen.getByTestId('highlight-#F5B041')).toBeInTheDocument();
+    expect(screen.queryByTestId('highlight-#F7DC6F')).not.toBeInTheDocument();
+    expect(screen.getByTestId('highlight-clear')).toBeInTheDocument();
   });
 
   it('se ferme sur Échap', async () => {
