@@ -454,12 +454,12 @@ th {
   opacity: 0.7;
 }
 
-/* Le menu s'ouvre AU-DESSUS : la barre vit en bas de l'écran. */
+/* Le menu s'ouvre AU-DESSUS : la barre vit en bas de l'écran. Rendu en
+   portail (document.body) et positionné en fixed depuis la pilule, sinon
+   l'overflow-x de .gc-tabs rognerait le panneau (left/bottom en inline). */
 .gc-monthnav__menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  z-index: 1000;
+  position: fixed;
+  z-index: 1200; /* au-dessus de la grille, comme .gc-account__menu */
   min-width: 210px;
   max-height: 320px;
   overflow-y: auto;

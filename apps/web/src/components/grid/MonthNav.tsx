@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { MonthInfo } from '@suivi/shared';
 
 const MONTH_NAMES = [
@@ -72,7 +73,12 @@ export function MonthNav({
   children,
 }: MonthNavProps) {
   const [open, setOpen] = useState(false);
+  // Position fixe du panneau (portail) : calée sur la pilule à l'ouverture.
+  const [menuPosition, setMenuPosition] = useState<{ left: number; bottom: number } | null>(
+    null,
+  );
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const previous = adjacentMonth(months, current, -1);
   const next = adjacentMonth(months, current, 1);
@@ -83,20 +89,45 @@ export function MonthNav({
   useEffect(() => {
     if (!open) return;
     function onDocumentClick(event: MouseEvent): void {
-      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
+      const target = event.target as Node;
+      // Le panneau vit dans un portail : un clic dedans est hors du wrap.
+      if (wrapRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key === 'Escape') setOpen(false);
     }
+    // Panneau en position fixe : on le referme dès que la fenêtre bouge.
+    function onWindowChange(): void {
+      setOpen(false);
+    }
     document.addEventListener('click', onDocumentClick);
     document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('scroll', onWindowChange);
+    window.addEventListener('resize', onWindowChange);
     return () => {
       document.removeEventListener('click', onDocumentClick);
       document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('scroll', onWindowChange);
+      window.removeEventListener('resize', onWindowChange);
     };
   }, [open]);
+
+  /**
+   * Le panneau est rendu en portail (document.body) : la barre `.gc-tabs`
+   * porte un `overflow-x: auto` qui rognerait un panneau positionné en
+   * absolu dans le wrap. On l'ancre donc en `fixed`, au-dessus de la pilule.
+   */
+  function toggleMenu(): void {
+    if (open) {
+      setOpen(false);
+      return;
+    }
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setMenuPosition({ left: rect.left, bottom: window.innerHeight - rect.top + 6 });
+    setOpen(true);
+  }
 
   function select(month: string): void {
     setOpen(false);
@@ -122,7 +153,7 @@ export function MonthNav({
           data-testid="month-current"
           aria-haspopup="listbox"
           aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
+          onClick={toggleMenu}
           className="gc-tab gc-monthnav__current"
         >
           {formatMonthLabel(current)}
@@ -134,32 +165,37 @@ export function MonthNav({
           </span>
         </button>
 
-        {open ? (
-          <div
-            role="listbox"
-            aria-label="Tous les mois"
-            data-testid="month-menu"
-            className="gc-monthnav__menu"
-          >
-            {recentFirst.map((info) => {
-              const selected = info.month === current;
-              return (
-                <button
-                  key={info.month}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  data-testid={`month-option-${info.month}`}
-                  onClick={() => select(info.month)}
-                  className="gc-monthnav__option"
-                >
-                  {formatMonthLabel(info.month)}
-                  <span className="gc-tab__count">({info.count})</span>
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
+        {open && menuPosition
+          ? createPortal(
+              <div
+                ref={menuRef}
+                role="listbox"
+                aria-label="Tous les mois"
+                data-testid="month-menu"
+                className="gc-monthnav__menu"
+                style={{ left: menuPosition.left, bottom: menuPosition.bottom }}
+              >
+                {recentFirst.map((info) => {
+                  const selected = info.month === current;
+                  return (
+                    <button
+                      key={info.month}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      data-testid={`month-option-${info.month}`}
+                      onClick={() => select(info.month)}
+                      className="gc-monthnav__option"
+                    >
+                      {formatMonthLabel(info.month)}
+                      <span className="gc-tab__count">({info.count})</span>
+                    </button>
+                  );
+                })}
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
 
       <button

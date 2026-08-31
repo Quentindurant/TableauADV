@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { MonthInfo } from '@suivi/shared';
 import {
@@ -131,6 +131,26 @@ describe('MonthNav', () => {
     await user.click(document.body);
     expect(screen.queryByTestId('month-menu')).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('le menu est rendu en portail dans document.body (sinon rogné par la barre)', async () => {
+    const user = userEvent.setup();
+    renderNav();
+    await user.click(screen.getByTestId('month-current'));
+    expect(screen.getByTestId('month-menu').parentElement).toBe(document.body);
+  });
+
+  it('un défilement ou un redimensionnement de la fenêtre referme le menu', async () => {
+    const user = userEvent.setup();
+    renderNav();
+    await user.click(screen.getByTestId('month-current'));
+    expect(screen.getByTestId('month-menu')).toBeTruthy();
+    fireEvent(window, new Event('scroll'));
+    expect(screen.queryByTestId('month-menu')).toBeNull();
+    await user.click(screen.getByTestId('month-current'));
+    expect(screen.getByTestId('month-menu')).toBeTruthy();
+    fireEvent(window, new Event('resize'));
+    expect(screen.queryByTestId('month-menu')).toBeNull();
   });
 
   it('le bouton + demande la création du mois suivant le plus récent', async () => {
