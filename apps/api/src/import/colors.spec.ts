@@ -12,9 +12,10 @@ function parLabel(key: string): Record<string, ChoiceSeed> {
 }
 
 describe('COLUMNS', () => {
-  it('décrit les 16 colonnes de la spec §2.1 dans l’ordre A..P', () => {
+  it('décrit les 17 colonnes (spec §2.1 + NO) dans l’ordre du classeur', () => {
     expect(COLUMNS.map((c) => c.key)).toEqual([
       'impe',
+      'no',
       'client',
       'dpt',
       'cp_client',
@@ -36,6 +37,7 @@ describe('COLUMNS', () => {
   it('reprend les libellés et types du contrat', () => {
     const parCle = Object.fromEntries(COLUMNS.map((c) => [c.key, c]));
     expect(parCle['impe']).toEqual({ key: 'impe', label: 'IMPE', type: 'DATE' });
+    expect(parCle['no']).toEqual({ key: 'no', label: 'NO', type: 'TEXT' });
     expect(parCle['statut']).toEqual({ key: 'statut', label: 'INSTALLATION', type: 'SELECT' });
     expect(parCle['heure']).toEqual({ key: 'heure', label: 'HEURE', type: 'TEXT' });
     expect(parCle['porta_commentaires']).toEqual({
@@ -55,21 +57,21 @@ describe('COLUMNS', () => {
 });
 
 describe('CHOICES_BY_COLUMN', () => {
-  it('compte 83 choix répartis sur les 5 listes', () => {
-    expect(CHOICES_BY_COLUMN['statut']).toHaveLength(15);
+  it('compte 88 choix répartis sur les 5 listes', () => {
+    expect(CHOICES_BY_COLUMN['statut']).toHaveLength(20);
     expect(CHOICES_BY_COLUMN['partenaire']).toHaveLength(41);
     expect(CHOICES_BY_COLUMN['tech']).toHaveLength(14);
     expect(CHOICES_BY_COLUMN['nom_cp']).toHaveLength(10);
     expect(CHOICES_BY_COLUMN['materiel_recu']).toHaveLength(3);
     expect(
       Object.values(CHOICES_BY_COLUMN).reduce((total, liste) => total + liste.length, 0),
-    ).toBe(83);
+    ).toBe(88);
   });
 
-  it('applique les couleurs exactes des statuts', () => {
+  it('applique les couleurs exactes des statuts (palette douce)', () => {
     const statuts = parLabel('statut');
     expect(statuts['NEW']).toEqual({
-      label: 'NEW', bgColor: '#FFFF00', textColor: '#FF0000', bold: true,
+      label: 'NEW', bgColor: '#F7DC6F', textColor: '#6B5504', bold: true,
     });
     expect(statuts['ATT PV']).toEqual({
       label: 'ATT PV', bgColor: '#744388', textColor: '#FFFFFF', bold: true,
@@ -81,18 +83,24 @@ describe('CHOICES_BY_COLUMN', () => {
       label: 'A DISTANCE', bgColor: null, textColor: null, bold: false,
     });
     expect(statuts['CLOTUREE']).toEqual({
-      label: 'CLOTUREE', bgColor: '#A6A6A6', textColor: '#ABEBC6', bold: false,
+      label: 'CLOTUREE', bgColor: '#D5D8DC', textColor: '#4D5656', bold: false,
+    });
+    expect(statuts['TECHNIQUE']).toEqual({
+      label: 'TECHNIQUE', bgColor: '#E9C46A', textColor: '#6E4A08', bold: true,
+    });
+    expect(statuts['ATT GC']).toEqual({
+      label: 'ATT GC', bgColor: '#F8B5C8', textColor: '#943126', bold: true,
     });
   });
 
   it('fige les 6 partenaires colorés dans l’Excel', () => {
     const partenaires = parLabel('partenaire');
-    expect(partenaires['EVERLINK']).toMatchObject({ bgColor: '#229955', textColor: '#000000' });
-    expect(partenaires['HIGHCOM']).toMatchObject({ bgColor: '#C39BD3', textColor: '#000000' });
-    expect(partenaires['ENTREPRISE PRO']).toMatchObject({ bgColor: '#2772A4', textColor: '#000000' });
-    expect(partenaires['OR-TEL']).toMatchObject({ bgColor: '#F1C40F', textColor: '#000000' });
-    expect(partenaires['VIP TELECOM']).toMatchObject({ bgColor: '#AED6F1', textColor: '#000000' });
-    expect(partenaires['WETELGROUP']).toMatchObject({ bgColor: '#FCDAE3', textColor: '#000000' });
+    expect(partenaires['EVERLINK']).toMatchObject({ bgColor: '#7DCEA0', textColor: '#0E4D28' });
+    expect(partenaires['HIGHCOM']).toMatchObject({ bgColor: '#C39BD3', textColor: '#4A235A' });
+    expect(partenaires['ENTREPRISE PRO']).toMatchObject({ bgColor: '#A9CCE3', textColor: '#1B4F72' });
+    expect(partenaires['OR-TEL']).toMatchObject({ bgColor: '#F7DC6F', textColor: '#6B5504' });
+    expect(partenaires['VIP TELECOM']).toMatchObject({ bgColor: '#AED6F1', textColor: '#1B4F72' });
+    expect(partenaires['WETELGROUP']).toMatchObject({ bgColor: '#FCDAE3', textColor: '#943126' });
   });
 
   it('attribue aux 35 autres partenaires une couleur pastelFor stable', () => {
@@ -130,13 +138,13 @@ describe('CHOICES_BY_COLUMN', () => {
   it('colore la liste tech selon le contrat', () => {
     const techs = parLabel('tech');
     expect(techs['DIRECT']).toEqual({
-      label: 'DIRECT', bgColor: null, textColor: '#009ADF', bold: true,
+      label: 'DIRECT', bgColor: null, textColor: '#0072A8', bold: true,
     });
     expect(techs['ADWEB']).toEqual({
-      label: 'ADWEB', bgColor: null, textColor: '#229955', bold: true,
+      label: 'ADWEB', bgColor: null, textColor: '#196F3D', bold: true,
     });
     expect(techs['VOSGES INFO']).toEqual({
-      label: 'VOSGES INFO', bgColor: null, textColor: '#229955', bold: true,
+      label: 'VOSGES INFO', bgColor: null, textColor: '#196F3D', bold: true,
     });
     expect(techs['NETWORK']).toEqual({
       label: 'NETWORK', bgColor: null, textColor: null, bold: false,
@@ -155,6 +163,7 @@ describe('CHOICES_BY_COLUMN', () => {
 describe('allowedValues', () => {
   it('expose les libellés autorisés d’une liste', () => {
     expect(allowedValues('statut').has('ATT CLIENT')).toBe(true);
+    expect(allowedValues('statut').has('ATT GC')).toBe(true);
     expect(allowedValues('statut').has('ATT CLIENTS')).toBe(false);
     expect(allowedValues('partenaire').size).toBe(41);
   });

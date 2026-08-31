@@ -29,7 +29,7 @@ describe('importWorkbook — lignes (e2e)', () => {
     // Supprime les lignes synthétiques importées par le test.
     await prisma.rowEvent.deleteMany();
     await prisma.row.deleteMany();
-    // Restaure l'état seedé (16 colonnes + choix) pour les suites voisines.
+    // Restaure l'état seedé (17 colonnes + choix) pour les suites voisines.
     await seed(prisma);
     await prisma.$disconnect();
   });
@@ -77,11 +77,11 @@ describe('importWorkbook — lignes (e2e)', () => {
     });
   });
 
-  it('reprend les surlignages manuels rouge et jaune dans formats', async () => {
+  it('reprend les surlignages manuels rouge et jaune dans formats (teintes douces)', async () => {
     const ligne = await prisma.row.findFirstOrThrow({
       where: { month: '2026-08', position: 2 },
     });
-    expect(formats(ligne)).toEqual({ num_chrono: { bg: '#FF0000' } });
+    expect(formats(ligne)).toEqual({ num_chrono: { bg: '#EE7A6D' } });
 
     const sansFormat = await prisma.row.findFirstOrThrow({
       where: { month: '2026-08', position: 0 },

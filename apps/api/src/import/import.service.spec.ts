@@ -86,7 +86,7 @@ describe('importWorkbook — atomicité de la transaction (unit)', () => {
 
     expect(transaction).toHaveBeenCalledTimes(1);
     // Options de timeout explicites (le défaut Prisma de 5s ne suffit pas
-    // pour 83 choix + lot de lignes, cf. finding majeur du brief).
+    // pour 88 choix + lot de lignes, cf. finding majeur du brief).
     const options = transaction.mock.calls[0][1];
     expect(options?.timeout).toBeGreaterThanOrEqual(60_000);
     expect(options?.maxWait).toBeGreaterThan(0);
@@ -104,8 +104,8 @@ describe('importWorkbook — atomicité de la transaction (unit)', () => {
 
   it("interrompt immédiatement toute écriture ultérieure dès qu'une étape échoue dans la transaction, et propage l'erreur", async () => {
     const callLog: string[] = [];
-    // Échoue à la 3e colonne (sur 16, aucune des deux premières n'a de choix
-    // associé) : si le code n'était pas transactionnel, ces 2 colonnes
+    // Échoue à la 3e colonne (sur 17, aucune des deux premières — impe, no —
+    // n'a de choix associé) : si le code n'était pas transactionnel, ces 2 colonnes
     // resteraient créées et l'import continuerait sur les feuilles suivantes.
     const tx = buildFakeTx(callLog, { model: 'column', method: 'create', afterCalls: 2 });
     const transaction = jest.fn((callback: (tx: unknown) => unknown) => callback(tx));

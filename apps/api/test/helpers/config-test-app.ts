@@ -59,7 +59,7 @@ export async function resetConfigTables(prisma: PrismaService): Promise<void> {
   await prisma.column.deleteMany();
 }
 
-/** Restaure la base de données au état seedé (16 colonnes + choix). */
+/** Restaure la base de données au état seedé (17 colonnes + choix). */
 export async function reseedConfigTables(prisma: PrismaService): Promise<void> {
   await seed(prisma);
 }

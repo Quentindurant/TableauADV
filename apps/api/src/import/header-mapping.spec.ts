@@ -17,21 +17,31 @@ describe('normalizeHeader', () => {
 describe('headerToKey', () => {
   it('reconnaît les en-têtes de la feuille de référence AOUT 2026', () => {
     expect(headerToKey('IMPE')).toBe('impe');
+    expect(headerToKey('NO')).toBe('no');
     expect(headerToKey('CLIENT')).toBe('client');
     expect(headerToKey('DPT')).toBe('dpt');
     expect(headerToKey('CP CLIENT')).toBe('cp_client');
     expect(headerToKey('PARTE')).toBe('partenaire');
     expect(headerToKey('DATE')).toBe('date');
     expect(headerToKey('PORTA ET COMMENTAIRES IMPORTANT')).toBe('porta_commentaires');
+    expect(headerToKey('PORTA / CONGES ET IMPORTANT')).toBe('porta_commentaires');
     expect(headerToKey('HEURE')).toBe('heure');
     expect(headerToKey('TECH')).toBe('tech');
     expect(headerToKey('NOM TECH')).toBe('nom_tech');
     expect(headerToKey('NOM CP')).toBe('nom_cp');
     expect(headerToKey('INSTALLATION')).toBe('statut');
     expect(headerToKey('COMMENTAIRES PLANIF')).toBe('commentaires_planif');
+    expect(headerToKey('TEMPS ET COMM PLANIF')).toBe('commentaires_planif');
     expect(headerToKey('MATERIEL RECU')).toBe('materiel_recu');
     expect(headerToKey('N° CHRONO')).toBe('num_chrono');
     expect(headerToKey('INFOS FACTURATION')).toBe('infos_facturation');
+  });
+
+  it('distingue NO (bon de commande) des variantes de N° CHRONO', () => {
+    expect(headerToKey('NO ')).toBe('no');
+    expect(headerToKey('NO CHRONO')).toBe('num_chrono');
+    expect(headerToKey('N CHRONO')).toBe('num_chrono');
+    expect(headerToKey('NUM CHRONO')).toBe('num_chrono');
   });
 
   it('reconnaît les variantes historiques des feuilles 2025', () => {
@@ -67,11 +77,11 @@ describe('columnLetter', () => {
 });
 
 describe('buildHeaderMap', () => {
-  it('mappe la feuille AOUT 2026 sur les 16 clés dans l’ordre A..P', () => {
+  it('mappe la feuille AOUT 2026 sur les 17 clés dans l’ordre du classeur', () => {
     const mapping = buildHeaderMap([
-      'IMPE', 'CLIENT', 'DPT', 'CP CLIENT', 'PARTE', 'DATE',
-      'PORTA ET COMMENTAIRES IMPORTANT', 'HEURE', 'TECH', 'NOM TECH', 'NOM CP',
-      'INSTALLATION', 'COMMENTAIRES PLANIF', 'MATERIEL RECU', 'N° CHRONO',
+      'IMPE', 'NO', 'CLIENT', 'DPT', 'CP CLIENT', 'PARTE', 'DATE',
+      'PORTA / CONGES ET IMPORTANT', 'HEURE', 'TECH', 'NOM TECH', 'NOM CP',
+      'INSTALLATION', 'TEMPS ET COMM PLANIF', 'MATERIEL RECU', 'N° CHRONO',
       'INFOS FACTURATION',
     ]);
     expect(mapping.keyByIndex).toEqual([...COLUMN_KEYS_IN_ORDER]);

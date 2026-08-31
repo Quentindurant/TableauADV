@@ -30,9 +30,11 @@ const LOT_INSERTION = 500;
 const IMPORT_TRANSACTION_TIMEOUT_MS = 120_000;
 const IMPORT_TRANSACTION_MAX_WAIT_MS = 10_000;
 
+// Fonds Zoho reconnus → teintes douces du surligneur (rouge, jaune, orange).
 const SURLIGNAGES: Readonly<Record<string, string>> = {
-  FF0000: '#FF0000',
-  FFFF00: '#FFFF00',
+  FF0000: '#EE7A6D',
+  FFFF00: '#F7DC6F',
+  FFC000: '#F5B041',
 };
 
 export interface SheetReport {

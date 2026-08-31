@@ -2,8 +2,8 @@ import { formatReport, type ImportReport } from './import.service';
 
 const RAPPORT: ImportReport = {
   file: '/tmp/classeur.xlsx',
-  columns: 16,
-  choices: 83,
+  columns: 17,
+  choices: 88,
   rows: 203,
   sheets: [
     {
@@ -23,8 +23,8 @@ describe('formatReport', () => {
   it('affiche les compteurs globaux', () => {
     const texte = formatReport(RAPPORT);
     expect(texte).toContain('Import terminé — fichier : /tmp/classeur.xlsx');
-    expect(texte).toContain('Colonnes créées : 16');
-    expect(texte).toContain('choix créés : 83');
+    expect(texte).toContain('Colonnes créées : 17');
+    expect(texte).toContain('choix créés : 88');
     expect(texte).toContain('lignes créées : 203');
   });
 

@@ -597,7 +597,7 @@ describe('Realtime (e2e)', () => {
       await request(app.getHttpServer())
         .post(`/api/columns/${column.id}/choices`)
         .set('Cookie', cookieAlice)
-        .send({ label: 'NEW', bgColor: '#FFFF00', textColor: '#FF0000', bold: true })
+        .send({ label: 'NEW', bgColor: '#F7DC6F', textColor: '#6B5504', bold: true })
         .expect(201);
 
       expect(await recu).toEqual({ scope: 'choices' });

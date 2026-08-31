@@ -1,6 +1,6 @@
 import { COLUMNS } from './colors';
 
-/** Les 16 clés de colonne, ordre A..P de la spec §2.1. */
+/** Les clés de colonne dans l'ordre du classeur (spec §2.1 + colonne NO). */
 export const COLUMN_KEYS_IN_ORDER: readonly string[] = COLUMNS.map((column) => column.key);
 
 /**
@@ -13,6 +13,9 @@ const ALIAS: Readonly<Record<string, string>> = {
   'IMPERATIF ACTION': 'impe',
   'DATE CDE': 'impe',
   'DATES IMPERATIFS': 'impe',
+  // Correspondance exacte sur l'en-tête normalisé : « NO CHRONO » et
+  // consorts restent bien mappés sur num_chrono plus bas.
+  NO: 'no',
   CLIENT: 'client',
   CLIENTS: 'client',
   DPT: 'dpt',
@@ -23,6 +26,9 @@ const ALIAS: Readonly<Record<string, string>> = {
   DATES: 'date',
   'PORTA ET COMMENTAIRES IMPORTANT': 'porta_commentaires',
   'PORTA PREVUE LE': 'porta_commentaires',
+  // Renommages Zoho relevés dans l'onglet AOUT 2026 (export 2026-08-31).
+  'PORTA CONGES ET IMPORTANT': 'porta_commentaires',
+  'TEMPS ET COMM PLANIF': 'commentaires_planif',
   HEURE: 'heure',
   TECH: 'tech',
   'NOM TECH': 'nom_tech',

@@ -59,7 +59,7 @@ describe('Choix de listes (e2e)', () => {
       const first = await request(app.getHttpServer())
         .post(`/api/columns/${columnId}/choices`)
         .set('Cookie', cookie)
-        .send({ label: 'NEW', bgColor: '#FFFF00', textColor: '#FF0000', bold: true });
+        .send({ label: 'NEW', bgColor: '#F7DC6F', textColor: '#6B5504', bold: true });
       const second = await request(app.getHttpServer())
         .post(`/api/columns/${columnId}/choices`)
         .set('Cookie', cookie)
@@ -69,8 +69,8 @@ describe('Choix de listes (e2e)', () => {
       expect(first.body).toMatchObject({
         columnId,
         label: 'NEW',
-        bgColor: '#FFFF00',
-        textColor: '#FF0000',
+        bgColor: '#F7DC6F',
+        textColor: '#6B5504',
         bold: true,
         position: 0,
         archived: false,

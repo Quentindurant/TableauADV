@@ -50,17 +50,17 @@ describe('PATCH /api/rows/:id (e2e)', () => {
     await request(ctx.app.getHttpServer())
       .patch(`/api/rows/${rowId}`)
       .set('Cookie', cookie)
-      .send({ expectedVersion: 0, formats: { num_chrono: { bg: '#FF0000' } } })
+      .send({ expectedVersion: 0, formats: { num_chrono: { bg: '#EE7A6D' } } })
       .expect(200);
 
     const ajout = await request(ctx.app.getHttpServer())
       .patch(`/api/rows/${rowId}`)
       .set('Cookie', cookie)
-      .send({ expectedVersion: 1, formats: { impe: { bg: '#FFFF00' } } })
+      .send({ expectedVersion: 1, formats: { impe: { bg: '#F7DC6F' } } })
       .expect(200);
     expect(ajout.body.formats).toEqual({
-      num_chrono: { bg: '#FF0000' },
-      impe: { bg: '#FFFF00' },
+      num_chrono: { bg: '#EE7A6D' },
+      impe: { bg: '#F7DC6F' },
     });
 
     const retrait = await request(ctx.app.getHttpServer())
@@ -68,7 +68,7 @@ describe('PATCH /api/rows/:id (e2e)', () => {
       .set('Cookie', cookie)
       .send({ expectedVersion: 2, formats: { num_chrono: null } })
       .expect(200);
-    expect(retrait.body.formats).toEqual({ impe: { bg: '#FFFF00' } });
+    expect(retrait.body.formats).toEqual({ impe: { bg: '#F7DC6F' } });
     expect(retrait.body.version).toBe(3);
   });
 
@@ -135,13 +135,13 @@ describe('PATCH /api/rows/:id (e2e)', () => {
     await request(ctx.app.getHttpServer())
       .patch(`/api/rows/${rowId}`)
       .set('Cookie', cookie)
-      .send({ expectedVersion: 0, formats: { impe: { bg: '#FF0000' } } })
+      .send({ expectedVersion: 0, formats: { impe: { bg: '#EE7A6D' } } })
       .expect(200);
 
     const res = await request(ctx.app.getHttpServer())
       .patch(`/api/rows/${rowId}`)
       .set('Cookie', cookie)
-      .send({ expectedVersion: 0, formats: { impe: { bg: '#FFFF00' } } })
+      .send({ expectedVersion: 0, formats: { impe: { bg: '#F5B041' } } })
       .expect(409);
 
     expect(res.body.details.conflictKeys).toEqual(['impe']);

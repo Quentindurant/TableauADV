@@ -61,8 +61,8 @@ describe('Colonnes (e2e)', () => {
           width: 150,
           choices: {
             create: [
-              { label: 'CLOTUREE', position: 1, bgColor: '#A6A6A6', textColor: '#ABEBC6' },
-              { label: 'NEW', position: 0, bgColor: '#FFFF00', textColor: '#FF0000', bold: true },
+              { label: 'CLOTUREE', position: 1, bgColor: '#D5D8DC', textColor: '#4D5656' },
+              { label: 'NEW', position: 0, bgColor: '#F7DC6F', textColor: '#6B5504', bold: true },
             ],
           },
         },
@@ -76,8 +76,8 @@ describe('Colonnes (e2e)', () => {
       expect(columns[0].choices.map((c) => c.label)).toEqual(['NEW', 'CLOTUREE']);
       expect(columns[0].choices[0]).toMatchObject({
         label: 'NEW',
-        bgColor: '#FFFF00',
-        textColor: '#FF0000',
+        bgColor: '#F7DC6F',
+        textColor: '#6B5504',
         bold: true,
         position: 0,
         archived: false,

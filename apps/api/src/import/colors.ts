@@ -15,12 +15,14 @@ export interface ChoiceSeed {
 }
 
 /**
- * Les 16 colonnes de la spec §2.1, dans l'ordre A..P.
+ * Les 16 colonnes de la spec §2.1 plus la colonne NO (col B de l'onglet
+ * AOUT 2026 : n° de BC HIGHCOM ou code de lot EVERLINK, texte libre).
  * L'index dans ce tableau est la `position` en base.
  * `heure` reste TEXT : le classeur contient « 14h », « 9H », « 14H30 ».
  */
 export const COLUMNS: readonly ColumnSeed[] = [
   { key: 'impe', label: 'IMPE', type: 'DATE' },
+  { key: 'no', label: 'NO', type: 'TEXT' },
   { key: 'client', label: 'CLIENT', type: 'TEXT' },
   { key: 'dpt', label: 'DPT', type: 'TEXT' },
   { key: 'cp_client', label: 'CP CLIENT', type: 'TEXT' },
@@ -55,23 +57,30 @@ function choix(
   return { label, bgColor, textColor, bold };
 }
 
-// Statuts — couleurs exactes des contrats (§ Couleurs initiales).
+// Statuts — palette douce validée (mêmes 20 statuts que le seed).
 const STATUTS: readonly ChoiceSeed[] = [
-  choix('NEW', '#FFFF00', '#FF0000', true),
-  choix('STAGING', '#F8B5C8', '#E64219', true),
-  choix('A SUIVRE', '#FFA600', '#FF0000', true),
-  choix('ATT TECH', '#F8B5C8', '#E64219', true),
-  choix('ATT PARTE', '#F8B5C8', '#E64219', true),
+  choix('NEW', '#F7DC6F', '#6B5504', true),
+  choix('STAGING', '#F8B5C8', '#943126', true),
+  choix('A SUIVRE', '#FAD7A0', '#874D0B', true),
+  choix('ATT TECH', '#F8B5C8', '#943126', true),
+  choix('ATT PARTE', '#F8B5C8', '#943126', true),
   choix('ATT PV', '#744388', '#FFFFFF', true),
-  choix('ATT 5 COM', '#F8B5C8', '#E64219', true),
-  choix('ATT CLIENT', '#F8B5C8', '#E64219', true),
+  choix('ATT 5 COM', '#F8B5C8', '#943126', true),
+  choix('ATT CLIENT', '#F8B5C8', '#943126', true),
   choix('EN COLLECTE', '#F9E79F', '#786208', false),
   choix('STAND BY', '#85C1E9', '#002060', true),
-  choix('A PLANIFIER', '#13ED0C', '#FF0000', true),
+  choix('A PLANIFIER', '#A3E4D7', '#0E6251', true),
   choix('INSTALLATION', '#9BDEB4', '#176638', true),
   choix('A DISTANCE', null, null, false),
-  choix('ANNULEE', '#FF0000', '#000000', true),
-  choix('CLOTUREE', '#A6A6A6', '#ABEBC6', false),
+  choix('ANNULEE', '#E6B0AA', '#78281F', true),
+  choix('CLOTUREE', '#D5D8DC', '#4D5656', false),
+  // Vocabulaire du classeur Zoho poussé/lu par Everlink.
+  choix('TECHNIQUE', '#E9C46A', '#6E4A08', true),
+  choix('OPER', '#EBDEF0', '#4A235A', true),
+  choix('PORTA', '#C39BD3', '#4A235A', true),
+  choix('PV', '#763E8D', '#FFFFFF', true),
+  // Attente Grands Comptes : même famille visuelle que les autres ATT.
+  choix('ATT GC', '#F8B5C8', '#943126', true),
 ];
 
 // 41 partenaires, ordre de la spec §2.2.
@@ -86,14 +95,14 @@ const PARTENAIRES: readonly string[] = [
   'VD COM', 'REVOLY', 'FR TELECOM', 'EVERLINK', 'HOIST GROUP',
 ];
 
-// Les 6 fonds relevés dans le classeur ; texte noir (contrat).
+// Les 6 partenaires figés — palette douce, texte accordé au fond.
 const PARTENAIRE_COULEURS_EXCEL: Readonly<Record<string, { bg: string; text: string }>> = {
-  EVERLINK: { bg: '#229955', text: '#000000' },
-  HIGHCOM: { bg: '#C39BD3', text: '#000000' },
-  'ENTREPRISE PRO': { bg: '#2772A4', text: '#000000' },
-  'OR-TEL': { bg: '#F1C40F', text: '#000000' },
-  'VIP TELECOM': { bg: '#AED6F1', text: '#000000' },
-  WETELGROUP: { bg: '#FCDAE3', text: '#000000' },
+  EVERLINK: { bg: '#7DCEA0', text: '#0E4D28' },
+  HIGHCOM: { bg: '#C39BD3', text: '#4A235A' },
+  'ENTREPRISE PRO': { bg: '#A9CCE3', text: '#1B4F72' },
+  'OR-TEL': { bg: '#F7DC6F', text: '#6B5504' },
+  'VIP TELECOM': { bg: '#AED6F1', text: '#1B4F72' },
+  WETELGROUP: { bg: '#FCDAE3', text: '#943126' },
 };
 
 const TECHS: readonly string[] = [
@@ -121,10 +130,10 @@ export const CHOICES_BY_COLUMN: Readonly<Record<string, readonly ChoiceSeed[]>> 
   }),
   tech: TECHS.map((label) => {
     if (label === 'DIRECT') {
-      return choix(label, null, '#009ADF', true);
+      return choix(label, null, '#0072A8', true);
     }
     if (TECHS_VERTS.has(label)) {
-      return choix(label, null, '#229955', true);
+      return choix(label, null, '#196F3D', true);
     }
     return choix(label);
   }),
