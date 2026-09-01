@@ -36,6 +36,11 @@
      le zébrage (surface-alt), et le halo de colonne se superpose aux deux —
      d'où une teinte pétrole translucide plutôt qu'une couleur pleine. */
   --gc-row-hover: #e7f1ee;
+  /* Ligne active (spec « Filtres multi-sélection… », §3) : fond de la ligne
+     dont une cellule a le focus. Un cran plus marqué que le survol pour
+     rester repérable quand les deux se superposent, mais assez léger pour
+     que le texte pétrole reste parfaitement lisible. */
+  --gc-row-active: #d7e7e1;
   --gc-col-hover: rgba(16, 53, 59, 0.05);
   --gc-border: #e4eae8;
   --gc-border-soft: #f1f5f3;
@@ -599,6 +604,17 @@ th {
 .ag-header-cell-text {
   text-transform: uppercase;
   letter-spacing: 0.1em;
+}
+
+/* Ligne active : la classe est posée par DataGrid.tsx (rowClassRules + bascule
+   directe au fil du focus). Préfixe `.ag-row` : la spécificité (0,2,0) passe
+   devant le fond de base `.ag-row` et le zébrage `.ag-row-odd` (0,1,0) du
+   thème, injecté à l'exécution donc APRÈS cette feuille. Le survol et la
+   sélection du thème sont des overlays ::before, et les surlignages métier
+   des styles inline posés sur les CELLULES : tous se dessinent par-dessus ce
+   fond de ligne, rien n'est masqué. */
+.ag-row.gc-row-active {
+  background-color: var(--gc-row-active);
 }
 
 /* ----------------------------------------------------- Page connexion --- */

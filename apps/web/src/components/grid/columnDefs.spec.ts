@@ -3,9 +3,11 @@ import type { ColumnDTO, RowDTO } from '@suivi/shared';
 import {
   buildColumnDefs,
   cellStyleForRow,
+  compareDateIso,
   formatDateFr,
   normalizeCellValue,
 } from './columnDefs';
+import { SelectColumnFilter, SelectColumnFloatingFilter } from './SelectColumnFilter';
 
 const columns: ColumnDTO[] = [
   {
@@ -186,17 +188,64 @@ describe('buildColumnDefs', () => {
     expect(cellStyle({ data: row })).toEqual({ backgroundColor: '#F7DC6F' });
   });
 
-  it('active le filtre texte et le filtre flottant sur toutes les colonnes', () => {
+  it('active le filtre flottant sur toutes les colonnes', () => {
     for (const def of defs) {
-      expect(def.filter).toBe('agTextColumnFilter');
       expect(def.floatingFilter).toBe(true);
     }
   });
 
-  it('filtre les colonnes date sur le format affiché JJ/MM/AAAA', () => {
-    const getter = defs[0].filterValueGetter as (params: { data?: RowDTO }) => unknown;
-    expect(getter({ data: row })).toBe('14/08/2026');
-    expect(getter({ data: undefined })).toBe('');
-    expect(defs[1].filterValueGetter).toBeUndefined();
+  it('garde le filtre texte sur les colonnes TEXT et LONGTEXT', () => {
+    expect(defs[1].filter).toBe('agTextColumnFilter');
+    expect(defs[2].filter).toBe('agTextColumnFilter');
+    expect(defs[4].filter).toBe('agTextColumnFilter');
+  });
+
+  it('branche le filtre multi-sélection maison sur les colonnes liste', () => {
+    expect(defs[3].filter).toBe(SelectColumnFilter);
+    expect(defs[3].floatingFilterComponent).toBe(SelectColumnFloatingFilter);
+    const params = defs[3].filterParams as { choices: unknown[] };
+    expect(params.choices).toEqual([]);
+  });
+
+  it('branche le filtre de plage de dates sur les colonnes date', () => {
+    expect(defs[0].filter).toBe('agDateColumnFilter');
+    const params = defs[0].filterParams as {
+      defaultOption: string;
+      inRangeInclusive: boolean;
+      browserDatePicker: boolean;
+      comparator: unknown;
+    };
+    expect(params.defaultOption).toBe('inRange');
+    expect(params.inRangeInclusive).toBe(true);
+    expect(params.browserDatePicker).toBe(true);
+    expect(params.comparator).toBe(compareDateIso);
+    // Le comparateur lit l'ISO brut : plus de filterValueGetter formaté.
+    expect(defs[0].filterValueGetter).toBeUndefined();
+  });
+});
+
+describe('compareDateIso', () => {
+  const quatorzeAout = new Date(2026, 7, 14);
+
+  it('compare une date ISO valide à la date du filtre', () => {
+    expect(compareDateIso(quatorzeAout, '2026-08-13')).toBeLessThan(0);
+    expect(compareDateIso(quatorzeAout, '2026-08-15')).toBeGreaterThan(0);
+  });
+
+  it('rend 0 le même jour — les bornes inRange incluent leurs extrémités', () => {
+    expect(compareDateIso(quatorzeAout, '2026-08-14')).toBe(0);
+    expect(compareDateIso(quatorzeAout, '2026-08-14T00:00:00.000Z')).toBe(0);
+  });
+
+  it('déclare non comparable une valeur non-ISO (ligne exclue de la plage)', () => {
+    expect(compareDateIso(quatorzeAout, '31/09')).toBeNaN();
+    expect(compareDateIso(quatorzeAout, 'à confirmer')).toBeNaN();
+    expect(compareDateIso(quatorzeAout, '')).toBeNaN();
+    expect(compareDateIso(quatorzeAout, null)).toBeNaN();
+  });
+
+  it('déclare non comparable une date ISO impossible (2026-02-31)', () => {
+    expect(compareDateIso(quatorzeAout, '2026-02-31')).toBeNaN();
+    expect(compareDateIso(quatorzeAout, '2026-13-05')).toBeNaN();
   });
 });

@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FocusEvent as ReactFocusEvent,
+} from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import {
   AllCommunityModule,
@@ -9,6 +16,7 @@ import {
   type CellClassParams,
   type CellClickedEvent,
   type CellContextMenuEvent,
+  type CellFocusedEvent,
   type CellKeyDownEvent,
   type CellValueChangedEvent,
   type ColDef,
@@ -17,6 +25,7 @@ import {
   type GetRowIdParams,
   type GridApi,
   type GridReadyEvent,
+  type RowClassParams,
   type RowDragEndEvent,
 } from 'ag-grid-community';
 import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
@@ -67,6 +76,92 @@ export const suiviTheme = themeQuartz.withParams({
   headerHeight: 34,
   cellHorizontalPadding: 10,
 });
+
+// --- Ligne active (spec « Filtres multi-sélection… », §3) -------------------
+//
+// La ligne dont une cellule a le focus (clic ou flèches clavier) porte la
+// classe `.gc-row-active` (fond léger, voir globals.css).
+//
+// Mécanique retenue : `rowClassRules` comme source de vérité déclarative —
+// AG Grid réévalue la règle à CHAQUE (re)création d'une ligne (virtualisation,
+// tri, filtre…), la classe suit donc la ligne sans comptabilité — et, pour la
+// transition immédiate ancienne → nouvelle ligne, bascule directe de la classe
+// sur les éléments `.ag-row[row-id]` : la mécanique même qu'AG Grid emploie en
+// interne pour le survol (`ag-row-hover` est posé/retiré par classList). Coût :
+// deux opérations DOM, aucune reconstruction de ligne.
+//
+// `redrawRows` ciblé sur l'ancienne et la nouvelle ligne (l'alternative
+// canonique) a été écarté après lecture du source d'ag-grid-community 34.3.1 :
+// 1. tout redraw, même partiel, stoppe d'abord TOUTE édition en cours
+//    (rowRenderer.redrawRows → editSvc.stopEditing) ;
+// 2. déclenché depuis cellFocused — donc pendant le mousedown — il détruirait
+//    la cellule cliquée avant le click/dblclick : suivi Maj+clic
+//    (onCellClicked) et édition au double-clic cassés ;
+// 3. le chemin partiel ne restaure pas le focus navigateur
+//    (restoreFocusedCell n'est appelé que par le redraw complet) : après un
+//    clic, les flèches ne piloteraient plus la grille.
+
+/** Classe CSS de la ligne active (fond `--gc-row-active`, globals.css). */
+export const CLASSE_LIGNE_ACTIVE = 'gc-row-active';
+
+/** Transition à opérer quand la ligne au focus change. */
+export interface ChangementLigneActive {
+  /** Ligne qui perd la classe (null si aucune ligne n'était active). */
+  retirerDe: string | null;
+  /** Ligne qui reçoit la classe (null quand le focus quitte la grille). */
+  poserSur: string | null;
+}
+
+/**
+ * Calcule la transition de ligne active, ou null si rien ne change (même
+ * ligne : les déplacements de cellule en cellule dans une ligne, ou les
+ * cellFocused répétés d'AG Grid, ne touchent pas au DOM).
+ */
+export function changementLigneActive(
+  ancienne: string | null,
+  nouvelle: string | null,
+): ChangementLigneActive | null {
+  if (ancienne === nouvelle) {
+    return null;
+  }
+  return { retirerDe: ancienne, poserSur: nouvelle };
+}
+
+/**
+ * Applique une transition au DOM : la classe est retirée de l'ancienne ligne
+ * et posée sur la nouvelle, sur TOUS ses fragments — AG Grid rend une ligne
+ * en plusieurs éléments `[row-id]` (conteneur central, colonnes épinglées).
+ */
+export function appliquerLigneActive(
+  racine: ParentNode,
+  changement: ChangementLigneActive,
+): void {
+  const basculer = (rowId: string | null, poser: boolean) => {
+    if (rowId === null) {
+      return;
+    }
+    for (const element of racine.querySelectorAll(`.ag-row[row-id="${CSS.escape(rowId)}"]`)) {
+      element.classList.toggle(CLASSE_LIGNE_ACTIVE, poser);
+    }
+  };
+  basculer(changement.retirerDe, false);
+  basculer(changement.poserSur, true);
+}
+
+/**
+ * Règles de classes de lignes branchées sur `rowClassRules` : `ligneActive`
+ * est résolue à l'appel (ref), jamais figée dans la closure. Typage en
+ * `Record` de prédicats (comme `cellClassRules` de la co-édition) : plus
+ * précis que `RowClassRules`, qui admet aussi des expressions en chaîne.
+ */
+export function reglesLigneActive(
+  ligneActive: () => string | null,
+): Record<string, (params: RowClassParams<RowDTO>) => boolean> {
+  return {
+    [CLASSE_LIGNE_ACTIVE]: (params: RowClassParams<RowDTO>) =>
+      params.data !== undefined && params.data.id === ligneActive(),
+  };
+}
 
 interface MenuState {
   row: RowDTO;
@@ -151,6 +246,51 @@ export function DataGrid({ reload }: DataGridProps) {
     anchor: -1,
     indexes: [],
   });
+
+  // --- Ligne active (voir le bloc de doc en tête de fichier) ---------------
+  const conteneurRef = useRef<HTMLDivElement | null>(null);
+  const ligneActiveRef = useRef<string | null>(null);
+
+  const rowClassRules = useMemo(() => reglesLigneActive(() => ligneActiveRef.current), []);
+
+  const changerLigneActive = useCallback((nouvelle: string | null) => {
+    const changement = changementLigneActive(ligneActiveRef.current, nouvelle);
+    if (!changement) {
+      return;
+    }
+    ligneActiveRef.current = nouvelle;
+    if (conteneurRef.current) {
+      appliquerLigneActive(conteneurRef.current, changement);
+    }
+  }, []);
+
+  const onCellFocused = useCallback(
+    (event: CellFocusedEvent<RowDTO>) => {
+      // L'événement porte rowIndex, PAS l'id de ligne : résolution AVANT le
+      // traitement co-édition, pour lire l'index sur un ordre de lignes
+      // encore stable (la vue n'épingle aucune ligne, l'index affiché suffit).
+      const node =
+        event.rowIndex === null || event.rowIndex === undefined
+          ? undefined
+          : event.api.getDisplayedRowAtIndex(event.rowIndex);
+      coedition.onCellFocused(event);
+      changerLigneActive(node?.data?.id ?? null);
+    },
+    [coedition.onCellFocused, changerLigneActive],
+  );
+
+  // Le focus quitte la grille (onBlur React = focusout, qui bulle) : la
+  // surbrillance disparaît. `relatedTarget` encore DANS le conteneur (éditeur
+  // ouvert, menu contextuel, dialogues) : elle reste.
+  const onConteneurBlur = useCallback(
+    (event: ReactFocusEvent<HTMLDivElement>) => {
+      if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+        return;
+      }
+      changerLigneActive(null);
+    },
+    [changerLigneActive],
+  );
 
   const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
     setGridApi(event.api);
@@ -377,9 +517,11 @@ export function DataGrid({ reload }: DataGridProps) {
 
   return (
     <div
+      ref={conteneurRef}
       data-testid="data-grid"
       style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}
       onClick={() => setMenu(null)}
+      onBlur={onConteneurBlur}
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <AgGridReact<RowDTO>
@@ -388,6 +530,7 @@ export function DataGrid({ reload }: DataGridProps) {
           columnDefs={columnDefs}
           getRowId={(params: GetRowIdParams<RowDTO>) => params.data.id}
           defaultColDef={defaultColDef}
+          rowClassRules={rowClassRules}
           singleClickEdit={false}
           columnHoverHighlight={true}
           stopEditingWhenCellsLoseFocus
@@ -405,7 +548,7 @@ export function DataGrid({ reload }: DataGridProps) {
           onRowDragEnd={onRowDragEnd}
           onCellClicked={onCellClicked}
           onCellKeyDown={onCellKeyDown}
-          onCellFocused={coedition.onCellFocused}
+          onCellFocused={onCellFocused}
           onCellEditingStarted={coedition.onCellEditingStarted}
           onCellEditingStopped={coedition.onCellEditingStopped}
           onCellContextMenu={onCellContextMenu}
