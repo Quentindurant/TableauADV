@@ -6,12 +6,27 @@ import {
   LIBELLE_VIDE,
   SelectColumnFilter,
   SelectColumnFloatingFilter,
+  compterValeursColonne,
   normaliserRecherche,
   passeLeFiltreSelection,
   type SelectColumnFilterProps,
   type SelectColumnFloatingFilterProps,
   type SelectFilterModel,
 } from './SelectColumnFilter';
+import { useAppStore } from '../../lib/store';
+import type { RowDTO } from '@suivi/shared';
+
+function ligne(id: string, data: Record<string, string>): RowDTO {
+  return {
+    id,
+    month: '2026-09',
+    position: 0,
+    data,
+    formats: {},
+    version: 0,
+    archived: false,
+  } as RowDTO;
+}
 
 // Le composant s'enregistre auprès de la grille via `useGridFilter` : on
 // capture les callbacks fournis pour tester `doesFilterPass` hors AG Grid.
@@ -121,6 +136,39 @@ describe('passeLeFiltreSelection', () => {
     const model: SelectFilterModel = { values: [] };
     expect(passeLeFiltreSelection(model, 'NEW')).toBe(false);
     expect(passeLeFiltreSelection(model, null)).toBe(false);
+  });
+});
+
+describe('compterValeursColonne', () => {
+  it('compte chaque valeur brute et regroupe les cellules vides sous null', () => {
+    const comptes = compterValeursColonne(
+      [
+        ligne('r1', { statut: 'NEW' }),
+        ligne('r2', { statut: 'NEW' }),
+        ligne('r3', { statut: 'INSTALLATION' }),
+        ligne('r4', { statut: '' }),
+        ligne('r5', {}),
+      ],
+      'statut',
+    );
+    expect(comptes.get('NEW')).toBe(2);
+    expect(comptes.get('INSTALLATION')).toBe(1);
+    expect(comptes.get(null)).toBe(2);
+  });
+
+  it('affiche le nombre de lignes à côté de chaque choix et de (Vide)', () => {
+    useAppStore.setState({
+      rows: [
+        ligne('r1', { statut: 'NEW' }),
+        ligne('r2', { statut: 'NEW' }),
+        ligne('r3', {}),
+      ],
+    });
+    render(<SelectColumnFilter {...propsFiltre(null)} />);
+    expect(screen.getByTestId('filtre-compte-NEW').textContent).toBe('2');
+    expect(screen.getByTestId('filtre-compte-INSTALLATION').textContent).toBe('0');
+    expect(screen.getByTestId('filtre-compte-vide').textContent).toBe('1');
+    useAppStore.setState({ rows: [] });
   });
 });
 

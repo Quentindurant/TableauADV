@@ -5,6 +5,7 @@ import { useGridFilter } from 'ag-grid-react';
 import type { CustomFilterProps, CustomFloatingFilterProps } from 'ag-grid-react';
 import type { IAfterGuiAttachedParams, IDoesFilterPassParams, IFilter } from 'ag-grid-community';
 import type { CellValue, ChoiceDTO, RowDTO } from '@suivi/shared';
+import { useAppStore } from '../../lib/store';
 
 /** Libellé de l'entrée qui matche les cellules sans valeur. */
 export const LIBELLE_VIDE = '(Vide)';
@@ -49,6 +50,25 @@ export function passeLeFiltreSelection(
   return model.values.includes(String(valeur));
 }
 
+/**
+ * Occurrences de chaque valeur de la colonne dans les lignes affichées
+ * (`null` = cellules vides). Comptes BRUTS de la vue courante : ils ne
+ * varient pas avec les filtres actifs, l'ADV voit le poids réel de chaque
+ * valeur dans le mois.
+ */
+export function compterValeursColonne(
+  rows: RowDTO[],
+  colKey: string,
+): Map<string | null, number> {
+  const comptes = new Map<string | null, number>();
+  for (const row of rows) {
+    const valeur = row.data[colKey];
+    const cle = estCelluleVide(valeur) ? null : String(valeur);
+    comptes.set(cle, (comptes.get(cle) ?? 0) + 1);
+  }
+  return comptes;
+}
+
 export type SelectColumnFilterProps = CustomFilterProps<RowDTO, unknown, SelectFilterModel> & {
   /** Même source que `SelectCellEditor` : les `ChoiceDTO` de la colonne. */
   choices: ChoiceDTO[];
@@ -71,6 +91,10 @@ export function SelectColumnFilter({
 }: SelectColumnFilterProps) {
   const [recherche, setRecherche] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const colKey = colDef.colId ?? '';
+  const rows = useAppStore((state) => state.rows);
+  const comptes = useMemo(() => compterValeursColonne(rows, colKey), [rows, colKey]);
 
   const actifs = useMemo(() => choices.filter((choice) => !choice.archived), [choices]);
 
@@ -116,7 +140,6 @@ export function SelectColumnFilter({
 
   // `doesFilterPass` travaille sur la valeur BRUTE de `data[colKey]`, pas sur
   // une valeur formatée : c'est elle que listent les `ChoiceDTO`.
-  const colKey = colDef.colId ?? '';
   const doesFilterPass = useCallback(
     (params: IDoesFilterPassParams<RowDTO>) =>
       passeLeFiltreSelection(model ?? null, params.data.data[colKey]),
@@ -199,6 +222,9 @@ export function SelectColumnFilter({
               >
                 {choice.label}
               </span>
+              <span style={styleCompte} data-testid={`filtre-compte-${choice.label}`}>
+                {comptes.get(choice.label) ?? 0}
+              </span>
             </label>
           </li>
         ))}
@@ -212,6 +238,9 @@ export function SelectColumnFilter({
                 onChange={() => basculer(null)}
               />
               <span style={{ color: 'var(--gc-muted)', fontStyle: 'italic' }}>{LIBELLE_VIDE}</span>
+              <span style={styleCompte} data-testid="filtre-compte-vide">
+                {comptes.get(null) ?? 0}
+              </span>
             </label>
           </li>
         ) : null}
@@ -242,6 +271,14 @@ const styleLigneChoix: React.CSSProperties = {
   padding: '3px 4px',
   cursor: 'pointer',
   borderRadius: 'var(--gc-radius-sm)',
+};
+
+/** Nombre de lignes portant la valeur, calé à droite de la ligne de choix. */
+const styleCompte: React.CSSProperties = {
+  marginLeft: 'auto',
+  color: 'var(--gc-muted)',
+  fontSize: 12,
+  fontVariantNumeric: 'tabular-nums',
 };
 
 export type SelectColumnFloatingFilterProps = CustomFloatingFilterProps<
