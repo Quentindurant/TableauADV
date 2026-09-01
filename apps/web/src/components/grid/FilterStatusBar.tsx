@@ -2,6 +2,7 @@
 
 import { useAppStore } from '../../lib/store';
 import { ColumnsPanel } from './ColumnsPanel';
+import { HIGHLIGHT_COLORS } from './HighlightPalette';
 
 /** « 12 / 42 dossiers » sous filtre actif, sinon « 42 dossiers ». */
 export function compteurDossiers(
@@ -23,11 +24,48 @@ export function FilterStatusBar() {
   const displayed = useAppStore((state) => state.displayedRowCount);
   const filtersActive = useAppStore((state) => state.filtersActive);
   const clearFilters = useAppStore((state) => state.clearFilters);
+  const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
+  const setSurlignageFiltre = useAppStore((state) => state.setSurlignageFiltre);
 
   return (
     <>
       <span data-testid="row-counter" className="gc-count">
         {compteurDossiers(displayed, total, filtersActive)}
+      </span>
+      <span
+        role="group"
+        aria-label="Filtrer par couleur de surlignage"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+      >
+        {HIGHLIGHT_COLORS.map(({ label, value }) => {
+          const actif = surlignageFiltre === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              data-testid={`filtre-surlignage-${label}`}
+              title={
+                actif
+                  ? `Ne plus filtrer sur le surlignage ${label}`
+                  : `Ne montrer que les lignes surlignées en ${label}`
+              }
+              aria-pressed={actif}
+              onClick={() => setSurlignageFiltre(actif ? null : value)}
+              style={{
+                width: 16,
+                height: 16,
+                padding: 0,
+                borderRadius: '50%',
+                // Couleur métier de la palette surligneur — jamais un token.
+                background: value,
+                border: '1px solid rgba(16, 53, 59, 0.25)',
+                outline: actif ? '2px solid var(--gc-accent)' : 'none',
+                outlineOffset: 1,
+                cursor: 'pointer',
+              }}
+            />
+          );
+        })}
       </span>
       {filtersActive ? (
         <button

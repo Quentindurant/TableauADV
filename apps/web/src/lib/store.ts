@@ -150,6 +150,9 @@ export interface AppState {
   clearFilters: () => void;
   setFilterStatus: (displayedRowCount: number, filtersActive: boolean) => void;
   setClearFilters: (fn: (() => void) | null) => void;
+  /** Hex du surlignage filtré (barre du bas), null = pas de filtre couleur. */
+  surlignageFiltre: string | null;
+  setSurlignageFiltre: (hex: string | null) => void;
 
   // --- co-édition (Feature 7) ---
   /** Annuaire complet de l'équipe (GET /users), rechargé sur config.changed. */
@@ -306,6 +309,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setFilterStatus: (displayedRowCount, filtersActive) =>
     set({ displayedRowCount, filtersActive }),
   setClearFilters: (fn) => set({ clearFilters: fn ?? noopClearFilters }),
+  surlignageFiltre: null,
+  setSurlignageFiltre: (hex) => set({ surlignageFiltre: hex }),
 
   // --- co-édition (Feature 7) ---
   users: [],

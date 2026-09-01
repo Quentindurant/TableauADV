@@ -63,4 +63,24 @@ describe('FilterStatusBar', () => {
     await user.click(screen.getByTestId('filters-reset'));
     expect(clear).toHaveBeenCalledTimes(1);
   });
+
+  it('une pastille de surlignage filtre au clic et se libère au second clic', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ surlignageFiltre: null });
+    render(<FilterStatusBar />);
+    const jaune = screen.getByTestId('filtre-surlignage-Jaune');
+    await user.click(jaune);
+    expect(useAppStore.getState().surlignageFiltre).toBe('#F7DC6F');
+    expect(jaune.getAttribute('aria-pressed')).toBe('true');
+    await user.click(jaune);
+    expect(useAppStore.getState().surlignageFiltre).toBeNull();
+  });
+
+  it('choisir une autre pastille remplace le filtre couleur courant', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ surlignageFiltre: '#F7DC6F' });
+    render(<FilterStatusBar />);
+    await user.click(screen.getByTestId('filtre-surlignage-Rouge'));
+    expect(useAppStore.getState().surlignageFiltre).toBe('#EE7A6D');
+  });
 });

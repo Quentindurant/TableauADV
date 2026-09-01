@@ -5,6 +5,7 @@ import {
   appliquerLigneActive,
   changementLigneActive,
   CLASSE_LIGNE_ACTIVE,
+  ligneContientSurlignage,
   reglesLigneActive,
 } from './DataGrid';
 
@@ -49,6 +50,23 @@ function grilleFactice(rowIds: string[]): HTMLElement {
 function fragments(racine: HTMLElement, rowId: string): Element[] {
   return Array.from(racine.querySelectorAll(`.ag-row[row-id="${rowId}"]`));
 }
+
+describe('ligneContientSurlignage', () => {
+  const ligne = (formats: Record<string, { bg?: string }>) =>
+    ({ id: 'r1', formats }) as unknown as Parameters<typeof ligneContientSurlignage>[0];
+
+  it("passe quand n'importe quelle cellule porte le surlignage cherché", () => {
+    expect(ligneContientSurlignage(ligne({ impe: { bg: '#F7DC6F' } }), '#F7DC6F')).toBe(true);
+    expect(
+      ligneContientSurlignage(ligne({ client: { bg: '#EE7A6D' }, date: { bg: '#F7DC6F' } }), '#F7DC6F'),
+    ).toBe(true);
+  });
+
+  it('échoue sans surlignage de cette couleur ou sans formats', () => {
+    expect(ligneContientSurlignage(ligne({ impe: { bg: '#EE7A6D' } }), '#F7DC6F')).toBe(false);
+    expect(ligneContientSurlignage(ligne({}), '#F7DC6F')).toBe(false);
+  });
+});
 
 describe('changementLigneActive', () => {
   it('rend null quand la ligne au focus ne change pas', () => {

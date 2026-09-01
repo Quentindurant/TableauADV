@@ -110,6 +110,15 @@ export const suiviTheme = themeQuartz.withParams({
 //    (restoreFocusedCell n'est appelé que par le redraw complet) : après un
 //    clic, les flèches ne piloteraient plus la grille.
 
+/**
+ * Une ligne « contient » un surlignage quand l'une de ses cellules porte ce
+ * fond (`Row.formats`, hex de la palette surligneur). Base du filtre par
+ * couleur de la barre du bas.
+ */
+export function ligneContientSurlignage(row: RowDTO, hex: string): boolean {
+  return Object.values(row.formats ?? {}).some((format) => format?.bg === hex);
+}
+
 /** Classe CSS de la ligne active (fond `--gc-row-active`, globals.css). */
 export const CLASSE_LIGNE_ACTIVE = 'gc-row-active';
 
@@ -313,8 +322,34 @@ export function DataGrid({ reload }: DataGridProps) {
   const onGridReady = useCallback((event: GridReadyEvent<RowDTO>) => {
     setGridApi(event.api);
     // Filtres PERSONNELS (client) : la barre du bas déclenche la remise à
-    // zéro sans connaître le GridApi — le store porte le branchement.
-    useAppStore.getState().setClearFilters(() => event.api.setFilterModel(null));
+    // zéro sans connaître le GridApi — le store porte le branchement. La
+    // remise à zéro couvre aussi le filtre par couleur de surlignage
+    // (externe à AG Grid, setFilterModel ne le vide pas).
+    useAppStore.getState().setClearFilters(() => {
+      useAppStore.getState().setSurlignageFiltre(null);
+      event.api.setFilterModel(null);
+    });
+  }, []);
+
+  // --- Filtre par couleur de surlignage (barre du bas) --------------------
+  // Filtre EXTERNE AG Grid : une ligne passe si l'une de ses cellules porte
+  // le surlignage choisi. Lu via une ref pour garder des callbacks stables ;
+  // tout changement notifie la grille (onFilterChanged), ce qui recalcule
+  // aussi le compteur X / N et l'état du bouton « Réinitialiser » —
+  // isAnyFilterPresent() intègre les filtres externes.
+  const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
+  const surlignageFiltreRef = useRef<string | null>(null);
+  useEffect(() => {
+    surlignageFiltreRef.current = surlignageFiltre;
+    gridApi?.onFilterChanged();
+  }, [surlignageFiltre, gridApi]);
+  const isExternalFilterPresent = useCallback(() => surlignageFiltreRef.current !== null, []);
+  const doesExternalFilterPass = useCallback((node: { data?: RowDTO }) => {
+    const hex = surlignageFiltreRef.current;
+    if (hex === null || node.data === undefined) {
+      return true;
+    }
+    return ligneContientSurlignage(node.data, hex);
   }, []);
 
   // Compteur X / N : X depuis la grille (lignes affichées après filtres),
@@ -570,6 +605,8 @@ export function DataGrid({ reload }: DataGridProps) {
           onGridReady={onGridReady}
           onFilterChanged={syncFilterStatus}
           onModelUpdated={syncFilterStatus}
+          isExternalFilterPresent={isExternalFilterPresent}
+          doesExternalFilterPass={doesExternalFilterPass}
           onCellValueChanged={onCellValueChanged}
           onColumnResized={onColumnResized}
           onColumnMoved={onColumnMoved}
