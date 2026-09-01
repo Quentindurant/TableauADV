@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MonthInfo, RowDTO } from '@suivi/shared';
 import { HighlightPalette } from './HighlightPalette';
 import { formatMonthLabel } from './MonthNav';
@@ -53,6 +53,23 @@ export function RowContextMenu({
   onHighlight,
 }: RowContextMenuProps) {
   const [moveOpen, setMoveOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ top: y, left: x });
+
+  // Le menu est ancré au point de clic mais ne doit jamais sortir de l'écran
+  // (clic droit sur les dernières lignes). Re-mesuré quand le sous-menu
+  // « Déplacer » s'ouvre : la hauteur change.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (menu === null) {
+      return;
+    }
+    const rect = menu.getBoundingClientRect();
+    const MARGE = 8;
+    const top = Math.max(MARGE, Math.min(y, window.innerHeight - MARGE - rect.height));
+    const left = Math.max(MARGE, Math.min(x, window.innerWidth - MARGE - rect.width));
+    setPos({ top, left });
+  }, [x, y, moveOpen]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
@@ -69,13 +86,14 @@ export function RowContextMenu({
 
   return (
     <div
+      ref={menuRef}
       role="menu"
       data-testid="row-context-menu"
       aria-label={`Actions sur la ligne ${row.position + 1}`}
       style={{
         position: 'fixed',
-        top: y,
-        left: x,
+        top: pos.top,
+        left: pos.left,
         zIndex: 1000,
         minWidth: 230,
         background: 'var(--gc-surface)',

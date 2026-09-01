@@ -40,7 +40,7 @@
      dont une cellule a le focus. Un cran plus marqué que le survol pour
      rester repérable quand les deux se superposent, mais assez léger pour
      que le texte pétrole reste parfaitement lisible. */
-  --gc-row-active: #d7e7e1;
+  --gc-row-active: #cde1d9;
   --gc-col-hover: rgba(16, 53, 59, 0.05);
   --gc-border: #e4eae8;
   --gc-border-soft: #f1f5f3;
@@ -615,6 +615,21 @@ th {
    fond de ligne, rien n'est masqué. */
 .ag-row.gc-row-active {
   background-color: var(--gc-row-active);
+}
+
+/* Barre accent à gauche de la ligne active : repère net même quand le fond
+   se confond avec le zébrage ou des surlignages de cellules. Dessinée en
+   overlay (z-index au-dessus des cellules), inerte au pointeur. */
+.ag-row.gc-row-active::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  background: var(--gc-accent);
+  z-index: 2;
+  pointer-events: none;
 }
 
 /* ----------------------------------------------------- Page connexion --- */
