@@ -617,17 +617,19 @@ th {
   background-color: var(--gc-row-active);
 }
 
-/* Barre accent à gauche de la ligne active : repère net même quand le fond
-   se confond avec le zébrage ou des surlignages de cellules. Dessinée en
-   overlay (z-index au-dessus des cellules), inerte au pointeur. */
+/* Cadre de la ligne active : barre accent à gauche + liserés haut/bas sur
+   TOUTE la ligne (la bordure de focus AG Grid ne marque que la cellule).
+   Overlay unique ::after (::before appartient aux overlays du thème) :
+   aucun décalage de mise en page, dessiné PAR-DESSUS les fonds de cellules
+   — liserés semi-transparents pétrole, lisibles sur blanc, zébrage et
+   surlignages sans écraser leurs couleurs. Inerte au pointeur. */
 .ag-row.gc-row-active::after {
   content: '';
   position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 3px;
-  background: var(--gc-accent);
+  inset: 0;
+  border-top: 1px solid rgba(16, 53, 59, 0.35);
+  border-bottom: 1px solid rgba(16, 53, 59, 0.35);
+  border-left: 3px solid var(--gc-accent);
   z-index: 2;
   pointer-events: none;
 }
