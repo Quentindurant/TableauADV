@@ -66,8 +66,9 @@ export const suiviTheme = themeQuartz.withParams({
   // hover est invisible une ligne sur deux) et halo de colonne translucide :
   // le croisement des deux guide l'œil jusqu'aux cellules en bas à droite.
   oddRowBackgroundColor: 'var(--gc-surface-alt, #F1F5F3)',
-  // Traits verticaux entre colonnes (repère spreadsheet demandé par les ADV).
-  columnBorder: { style: 'solid', width: 1, color: 'var(--gc-border-soft, #F1F5F3)' },
+  // Traits verticaux entre colonnes (repère spreadsheet demandé par les ADV) —
+  // même bordure que le chrome : assez visible sur le zébrage et le blanc.
+  columnBorder: { style: 'solid', width: 1, color: 'var(--gc-border, #E4EAE8)' },
   rowHoverColor: 'var(--gc-row-hover, #E7F1EE)',
   columnHoverColor: 'var(--gc-col-hover, rgba(16, 53, 59, 0.05))',
   selectedRowBackgroundColor: 'var(--gc-surface-sunken, #E9EFED)',
