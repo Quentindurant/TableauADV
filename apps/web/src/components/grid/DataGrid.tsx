@@ -112,10 +112,18 @@ export const suiviTheme = themeQuartz.withParams({
 
 /**
  * Une ligne « contient » un surlignage quand l'une de ses cellules porte ce
- * fond (`Row.formats`, hex de la palette surligneur). Base du filtre par
- * couleur de la barre du bas.
+ * fond (`Row.formats`, hex de la palette surligneur) — ou la cellule de la
+ * seule colonne `colKey` quand elle est fournie. Base du filtre par couleur
+ * de la barre du bas.
  */
-export function ligneContientSurlignage(row: RowDTO, hex: string): boolean {
+export function ligneContientSurlignage(
+  row: RowDTO,
+  hex: string,
+  colKey: string | null = null,
+): boolean {
+  if (colKey !== null) {
+    return (row.formats ?? {})[colKey]?.bg === hex;
+  }
   return Object.values(row.formats ?? {}).some((format) => format?.bg === hex);
 }
 
@@ -327,6 +335,7 @@ export function DataGrid({ reload }: DataGridProps) {
     // (externe à AG Grid, setFilterModel ne le vide pas).
     useAppStore.getState().setClearFilters(() => {
       useAppStore.getState().setSurlignageFiltre(null);
+      useAppStore.getState().setSurlignageColonne(null);
       event.api.setFilterModel(null);
     });
   }, []);
@@ -338,18 +347,21 @@ export function DataGrid({ reload }: DataGridProps) {
   // aussi le compteur X / N et l'état du bouton « Réinitialiser » —
   // isAnyFilterPresent() intègre les filtres externes.
   const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
+  const surlignageColonne = useAppStore((state) => state.surlignageColonne);
   const surlignageFiltreRef = useRef<string | null>(null);
+  const surlignageColonneRef = useRef<string | null>(null);
   useEffect(() => {
     surlignageFiltreRef.current = surlignageFiltre;
+    surlignageColonneRef.current = surlignageColonne;
     gridApi?.onFilterChanged();
-  }, [surlignageFiltre, gridApi]);
+  }, [surlignageFiltre, surlignageColonne, gridApi]);
   const isExternalFilterPresent = useCallback(() => surlignageFiltreRef.current !== null, []);
   const doesExternalFilterPass = useCallback((node: { data?: RowDTO }) => {
     const hex = surlignageFiltreRef.current;
     if (hex === null || node.data === undefined) {
       return true;
     }
-    return ligneContientSurlignage(node.data, hex);
+    return ligneContientSurlignage(node.data, hex, surlignageColonneRef.current);
   }, []);
 
   // Compteur X / N : X depuis la grille (lignes affichées après filtres),

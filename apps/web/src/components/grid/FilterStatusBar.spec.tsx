@@ -83,4 +83,32 @@ describe('FilterStatusBar', () => {
     await user.click(screen.getByTestId('filtre-surlignage-Rouge'));
     expect(useAppStore.getState().surlignageFiltre).toBe('#EE7A6D');
   });
+
+  it('le sélecteur de colonne apparaît avec une couleur active et cible le filtre', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      surlignageFiltre: null,
+      surlignageColonne: null,
+      columns: [
+        {
+          id: 'col-impe',
+          key: 'impe',
+          label: 'IMPE',
+          type: 'DATE',
+          position: 0,
+          width: 110,
+          visible: true,
+          choices: [],
+        },
+      ],
+    });
+    render(<FilterStatusBar />);
+    expect(screen.queryByTestId('filtre-surlignage-colonne')).toBeNull();
+    await user.click(screen.getByTestId('filtre-surlignage-Jaune'));
+    await user.selectOptions(screen.getByTestId('filtre-surlignage-colonne'), 'impe');
+    expect(useAppStore.getState().surlignageColonne).toBe('impe');
+    // Couleur levée : le ciblage de colonne est levé aussi.
+    await user.click(screen.getByTestId('filtre-surlignage-Jaune'));
+    expect(useAppStore.getState().surlignageColonne).toBeNull();
+  });
 });

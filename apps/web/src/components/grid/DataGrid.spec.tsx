@@ -66,6 +66,13 @@ describe('ligneContientSurlignage', () => {
     expect(ligneContientSurlignage(ligne({ impe: { bg: '#EE7A6D' } }), '#F7DC6F')).toBe(false);
     expect(ligneContientSurlignage(ligne({}), '#F7DC6F')).toBe(false);
   });
+
+  it('ciblé sur une colonne : seule la cellule de cette colonne compte', () => {
+    const formats = { impe: { bg: '#F7DC6F' }, client: { bg: '#EE7A6D' } };
+    expect(ligneContientSurlignage(ligne(formats), '#F7DC6F', 'impe')).toBe(true);
+    expect(ligneContientSurlignage(ligne(formats), '#F7DC6F', 'client')).toBe(false);
+    expect(ligneContientSurlignage(ligne(formats), '#F7DC6F', 'date')).toBe(false);
+  });
 });
 
 describe('changementLigneActive', () => {

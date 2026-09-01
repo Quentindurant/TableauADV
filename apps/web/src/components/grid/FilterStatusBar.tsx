@@ -26,6 +26,9 @@ export function FilterStatusBar() {
   const clearFilters = useAppStore((state) => state.clearFilters);
   const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
   const setSurlignageFiltre = useAppStore((state) => state.setSurlignageFiltre);
+  const surlignageColonne = useAppStore((state) => state.surlignageColonne);
+  const setSurlignageColonne = useAppStore((state) => state.setSurlignageColonne);
+  const columns = useAppStore((state) => state.columns);
 
   return (
     <>
@@ -50,7 +53,13 @@ export function FilterStatusBar() {
                   : `Ne montrer que les lignes surlignées en ${label}`
               }
               aria-pressed={actif}
-              onClick={() => setSurlignageFiltre(actif ? null : value)}
+              onClick={() => {
+                setSurlignageFiltre(actif ? null : value);
+                // Couleur levée = ciblage de colonne levé aussi : la
+                // prochaine couleur repart de « Toutes colonnes », sans
+                // ciblage fantôme hérité du filtre précédent.
+                if (actif) setSurlignageColonne(null);
+              }}
               style={{
                 width: 16,
                 height: 16,
@@ -66,6 +75,24 @@ export function FilterStatusBar() {
             />
           );
         })}
+        {surlignageFiltre !== null ? (
+          <select
+            data-testid="filtre-surlignage-colonne"
+            aria-label="Colonne ciblée par le filtre couleur"
+            value={surlignageColonne ?? ''}
+            onChange={(event) => setSurlignageColonne(event.target.value === '' ? null : event.target.value)}
+            style={{ fontSize: 12, maxWidth: 150, padding: '2px 6px' }}
+          >
+            <option value="">Toutes colonnes</option>
+            {columns
+              .filter((column) => column.visible)
+              .map((column) => (
+                <option key={column.id} value={column.key}>
+                  {column.label}
+                </option>
+              ))}
+          </select>
+        ) : null}
       </span>
       {filtersActive ? (
         <button
