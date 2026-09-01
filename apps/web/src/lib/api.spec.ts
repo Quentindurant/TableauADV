@@ -8,13 +8,16 @@ import {
   deleteRow,
   getColumns,
   getCorbeille,
+  getMyColumnLayout,
   getRowEvents,
   getRows,
   moveRow,
   patchColumn,
+  patchMyColumnLayout,
   patchRow,
   reportMonth,
   reportPreview,
+  resetMyColumnLayout,
   restoreMonth,
   searchRows,
 } from './api';
@@ -139,6 +142,26 @@ describe('routes', () => {
     });
     expect(fetchMock.mock.calls[2][0]).toBe('/api/columns/col-1');
     expect((fetchMock.mock.calls[2][1] as RequestInit).method).toBe('PATCH');
+  });
+
+  it('getMyColumnLayout, patchMyColumnLayout et resetMyColumnLayout ciblent /me/column-layout', async () => {
+    const fetchMock = mockFetch(200, []);
+    await getMyColumnLayout();
+    await patchMyColumnLayout('col-1', { width: 240, hidden: true });
+    await resetMyColumnLayout();
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/me/column-layout');
+    expect((fetchMock.mock.calls[0][1] as RequestInit).method ?? 'GET').toBe('GET');
+
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/me/column-layout/col-1');
+    expect((fetchMock.mock.calls[1][1] as RequestInit).method).toBe('PATCH');
+    expect(JSON.parse(String((fetchMock.mock.calls[1][1] as RequestInit).body))).toEqual({
+      width: 240,
+      hidden: true,
+    });
+
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/me/column-layout');
+    expect((fetchMock.mock.calls[2][1] as RequestInit).method).toBe('DELETE');
   });
 
   it('reportPreview interroge le compte des candidates sans rien modifier', async () => {

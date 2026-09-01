@@ -521,6 +521,33 @@ th {
   color: var(--gc-petrol);
 }
 
+/* Panneau « Colonnes » : masquage PERSONNEL par colonne (même mécanique de
+   portail/fixed que le menu des mois, voir .gc-monthnav__menu). */
+
+.gc-colonnes__option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-petrol);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.gc-colonnes__option:hover {
+  background: var(--gc-surface-hover);
+}
+
+.gc-colonnes__reset {
+  width: 100%;
+  justify-content: center;
+  margin-top: 5px;
+}
+
 /* ------------------------------------------------- Boutons de service --- */
 
 .gc-btn-primary {

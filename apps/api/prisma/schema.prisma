@@ -18,24 +18,42 @@ enum ColumnType {
 }
 
 model User {
-  id           String     @id @default(cuid())
-  email        String     @unique
-  passwordHash String
-  displayName  String
-  cursorColor  String
-  createdAt    DateTime   @default(now())
-  events       RowEvent[]
+  id            String             @id @default(cuid())
+  email         String             @unique
+  passwordHash  String
+  displayName   String
+  cursorColor   String
+  createdAt     DateTime           @default(now())
+  events        RowEvent[]
+  columnLayouts UserColumnLayout[]
 }
 
 model Column {
-  id       String     @id @default(cuid())
-  key      String     @unique
-  label    String
-  type     ColumnType
-  position Int
-  width    Int        @default(150)
-  visible  Boolean    @default(true)
-  choices  Choice[]
+  id          String             @id @default(cuid())
+  key         String             @unique
+  label       String
+  type        ColumnType
+  position    Int
+  width       Int                @default(150)
+  visible     Boolean            @default(true)
+  choices     Choice[]
+  userLayouts UserColumnLayout[]
+}
+
+/// Disposition personnelle des colonnes : une entrée par (utilisateur, colonne).
+/// Un champ nul hérite du réglage standard porté par la table `Column`
+/// (écran admin Paramètres > Colonnes, inchangé).
+model UserColumnLayout {
+  id       String  @id @default(cuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  columnId String
+  column   Column  @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  width    Int?
+  position Int?
+  hidden   Boolean @default(false)
+
+  @@unique([userId, columnId])
 }
 
 model Choice {

@@ -1,11 +1,11 @@
 'use client';
 
-import type { ColumnDTO, RowDTO, UserDTO } from '@suivi/shared';
+import type { ColumnDTO, RowDTO, UserColumnLayoutDTO, UserDTO } from '@suivi/shared';
 import { ApiRequestError, apiFetch } from './api';
 import { roomForView, rowsQueryForView } from './coedition';
 import type { GridView } from './store';
 import { joinRoom } from './socket';
-import { useAppStore } from './store';
+import { indexerDisposition, useAppStore } from './store';
 
 export const RESYNC_ERROR_MESSAGE =
   'Impossible de recharger les données — nouvelle tentative à la prochaine reconnexion';
@@ -103,8 +103,17 @@ export async function refreshConfig(
       return;
     }
     // Les colonnes elles-mêmes sont imbriquées dans ColumnDTO.choices : un
-    // seul appel couvre le scope « columns ».
-    useAppStore.getState().setColumns(await apiFetch<ColumnDTO[]>('/columns'));
+    // seul appel couvre le scope « columns ». La disposition PERSONNELLE est
+    // rechargée en parallèle puis ré-appliquée APRÈS le global : sans cela,
+    // un config.changed admin ferait perdre à la grille les largeurs/ordre/
+    // masquages propres à l'utilisateur (une colonne créée entre-temps garde,
+    // elle, sa place et sa largeur standards, faute d'entrée perso).
+    const [columns, layout] = await Promise.all([
+      apiFetch<ColumnDTO[]>('/columns'),
+      apiFetch<UserColumnLayoutDTO[]>('/me/column-layout'),
+    ]);
+    useAppStore.getState().setColumns(columns);
+    useAppStore.getState().setUserLayout(indexerDisposition(layout));
   } catch (error) {
     handleSyncError(error, deps);
   }

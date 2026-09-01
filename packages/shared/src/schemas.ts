@@ -53,6 +53,21 @@ export const updateColumnSchema = z.object({
   visible: z.boolean().optional(),
 });
 
+/**
+ * Body de PATCH /me/column-layout/:columnId : au moins un champ. Un champ
+ * absent reste inchangé sur l'entrée upsertée ; contrairement au réglage
+ * standard (updateColumnSchema), la largeur personnelle n'est pas bornée.
+ */
+export const updateUserColumnLayoutSchema = z
+  .object({
+    width: z.number().int('Largeur entière attendue').min(0).optional(),
+    position: z.number().int('Position entière attendue').min(0).optional(),
+    hidden: z.boolean().optional(),
+  })
+  .refine((o) => Object.keys(o).length > 0, {
+    message: 'Aucun champ à modifier',
+  });
+
 export const createChoiceSchema = z.object({
   label: z.string().trim().min(1, 'Libellé requis'),
   bgColor: hexColor.optional(),

@@ -8,6 +8,7 @@ import type {
   MonthInfo,
   RowDTO,
   RowEventDTO,
+  UserColumnLayoutDTO,
   UserDTO,
 } from '@suivi/shared';
 
@@ -196,6 +197,36 @@ export async function patchColumn(
   body: { label?: string; position?: number; width?: number; visible?: boolean },
 ): Promise<ColumnDTO> {
   return apiFetch<ColumnDTO>(`/columns/${id}`, jsonBody('PATCH', body));
+}
+
+// --- Disposition personnelle des colonnes -----------------------------------
+
+/**
+ * Entrées de disposition personnelle de l'utilisateur courant (entrées
+ * existantes uniquement ; colonne absente = réglage standard).
+ */
+export async function getMyColumnLayout(): Promise<UserColumnLayoutDTO[]> {
+  return apiFetch<UserColumnLayoutDTO[]>('/me/column-layout');
+}
+
+/**
+ * Upsert d'un réglage personnel (largeur, position ou masquage) d'une
+ * colonne. Aucune émission temps réel côté serveur : la disposition est une
+ * préférence strictement personnelle.
+ */
+export async function patchMyColumnLayout(
+  columnId: string,
+  patch: { width?: number; position?: number; hidden?: boolean },
+): Promise<UserColumnLayoutDTO> {
+  return apiFetch<UserColumnLayoutDTO>(
+    `/me/column-layout/${columnId}`,
+    jsonBody('PATCH', patch),
+  );
+}
+
+/** Purge toute la disposition personnelle : retour au réglage standard. */
+export async function resetMyColumnLayout(): Promise<{ deleted: number }> {
+  return apiFetch<{ deleted: number }>('/me/column-layout', { method: 'DELETE' });
 }
 
 // --- Mois -------------------------------------------------------------------

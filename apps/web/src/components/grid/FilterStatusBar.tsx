@@ -1,6 +1,7 @@
 'use client';
 
 import { useAppStore } from '../../lib/store';
+import { ColumnsPanel } from './ColumnsPanel';
 
 /** « 12 / 42 dossiers » sous filtre actif, sinon « 42 dossiers ». */
 export function compteurDossiers(
@@ -13,8 +14,9 @@ export function compteurDossiers(
 }
 
 /**
- * Compteur de dossiers du mois + remise à zéro des filtres personnels.
- * Purement client : chaque ADV voit son propre état de filtres AG Grid.
+ * Compteur de dossiers du mois + remise à zéro des filtres personnels +
+ * panneau « Colonnes » (disposition personnelle). Purement client pour les
+ * filtres : chaque ADV voit son propre état de filtres AG Grid.
  */
 export function FilterStatusBar() {
   const total = useAppStore((state) => state.rows.length);
@@ -37,6 +39,7 @@ export function FilterStatusBar() {
           Réinitialiser les filtres
         </button>
       ) : null}
+      <ColumnsPanel />
     </>
   );
 }

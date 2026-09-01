@@ -3,7 +3,7 @@ import type { ColumnDTO, RowDTO, UserDTO } from '@suivi/shared';
 import { ApiRequestError, apiFetch } from './api';
 import { RESYNC_ERROR_MESSAGE, refreshConfig, resyncView } from './coedition-sync';
 import { joinRoom } from './socket';
-import { useAppStore } from './store';
+import { fusionnerDisposition, useAppStore } from './store';
 
 // Automock complet de './api' : le mock générique de vitest ne rejoue pas le
 // corps du constructeur de `ApiRequestError` (les champs `code`/`status`
@@ -49,6 +49,7 @@ beforeEach(() => {
     user: null,
     users: [],
     columns: [],
+    userLayout: {},
     rows: [],
     view: 'month',
     monthCourant: '2026-08',
@@ -141,10 +142,32 @@ describe('resyncView', () => {
 
 describe('refreshConfig', () => {
   it('recharge les colonnes pour le scope columns', async () => {
-    vi.mocked(apiFetch).mockResolvedValue([column] as never);
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') return [column] as never;
+      if (path === '/me/column-layout') return [] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
     await refreshConfig('columns');
     expect(apiFetch).toHaveBeenCalledWith('/columns');
     expect(useAppStore.getState().columns).toEqual([column]);
+  });
+
+  it('ré-applique la disposition personnelle après rechargement du global (scope columns)', async () => {
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/columns') return [column] as never;
+      if (path === '/me/column-layout')
+        return [{ columnId: 'c1', width: 320, position: null, hidden: false }] as never;
+      throw new Error(`chemin inattendu: ${path}`);
+    });
+
+    await refreshConfig('columns');
+
+    expect(apiFetch).toHaveBeenCalledWith('/me/column-layout');
+    expect(useAppStore.getState().userLayout).toEqual({ c1: { width: 320 } });
+    // La grille dérive ses colonnes de la fusion : la largeur perso survit
+    // au config.changed admin au lieu d'être écrasée par le global rechargé.
+    const { columns, userLayout } = useAppStore.getState();
+    expect(fusionnerDisposition(columns, userLayout)[0].width).toBe(320);
   });
 
   it('recharge les colonnes pour le scope choices (les choix y sont imbriqués)', async () => {

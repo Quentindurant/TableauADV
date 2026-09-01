@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import * as api from '../../lib/api';
-import { useAppStore } from '../../lib/store';
+import { indexerDisposition, useAppStore } from '../../lib/store';
 import { DataGrid } from '../../components/grid/DataGrid';
 import { MonthNav, latestMonth } from '../../components/grid/MonthNav';
 import { MonthReportDialog } from '../../components/grid/MonthReportDialog';
@@ -41,14 +41,19 @@ export default function MoisPage() {
     async function bootstrap(): Promise<void> {
       const store = useAppStore.getState();
       try {
-        const [user, columns, monthList] = await Promise.all([
+        const [user, columns, monthList, layout] = await Promise.all([
           api.getMe(),
           api.getColumns(),
           api.getMonths(),
+          // Disposition personnelle chargée avec les colonnes ; échec toléré
+          // (null) : la grille retombe sur le réglage standard, sans bloquer
+          // le chargement du tableau.
+          api.getMyColumnLayout().catch(() => null),
         ]);
         if (cancelled) return;
         store.setUser(user);
         store.setColumns(columns);
+        if (layout !== null) store.setUserLayout(indexerDisposition(layout));
         store.setMonths(monthList);
         store.setView('month');
         const target = monthList.some((info) => info.month === store.monthCourant)

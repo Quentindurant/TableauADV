@@ -36,6 +36,21 @@ export interface ColumnDTO {
   choices: ChoiceDTO[];
 }
 
+/**
+ * Disposition personnelle d'une colonne (GET /api/me/column-layout,
+ * PATCH /api/me/column-layout/:columnId). Un champ nul hérite du réglage
+ * standard de la colonne (`ColumnDTO`).
+ */
+export interface UserColumnLayoutDTO {
+  columnId: string;
+  /** Largeur personnelle en pixels, null = largeur standard. */
+  width: number | null;
+  /** Position personnelle, null = position standard. */
+  position: number | null;
+  /** Colonne masquée pour ce compte uniquement. */
+  hidden: boolean;
+}
+
 export type CellValue = string | number | null;
 
 export interface CellFormat {

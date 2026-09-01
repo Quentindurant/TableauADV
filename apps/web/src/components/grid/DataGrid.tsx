@@ -30,10 +30,16 @@ import {
 } from 'ag-grid-community';
 import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import * as api from '../../lib/api';
-import { useAppStore } from '../../lib/store';
+import { fusionnerDisposition, useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
 import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
-import { debouncePerKey, persistColumnField, type PersistColumnFieldDeps } from './columnLayout';
+import {
+  debounce,
+  debouncePerKey,
+  persistColumnField,
+  persistColumnOrder,
+  type PersistColumnFieldDeps,
+} from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { RowContextMenu } from './RowContextMenu';
 import { RowDeleteDialog } from './RowDeleteDialog';
@@ -180,6 +186,7 @@ export interface DataGridProps {
 
 export function DataGrid({ reload }: DataGridProps) {
   const columns = useAppStore((state) => state.columns);
+  const userLayout = useAppStore((state) => state.userLayout);
   const choicesByColumnKey = useAppStore((state) => state.choicesByColumnKey);
   const rows = useAppStore((state) => state.rows);
   const months = useAppStore((state) => state.months);
@@ -199,8 +206,16 @@ export function DataGrid({ reload }: DataGridProps) {
 
   const coedition = useCoedition(view, monthCourant, gridApi);
 
+  // La grille consomme les colonnes EFFECTIVES : réglage standard fusionné
+  // avec la disposition personnelle (largeur, ordre, masquage). L'écran admin
+  // Paramètres > Colonnes, lui, continue de lire le réglage standard pur.
+  const colonnesEffectives = useMemo(
+    () => fusionnerDisposition(columns, userLayout),
+    [columns, userLayout],
+  );
+
   const columnDefs = useMemo(() => {
-    const base = buildColumnDefs(columns, choicesByColumnKey);
+    const base = buildColumnDefs(colonnesEffectives, choicesByColumnKey);
     // La Feature 6 fixe déjà `editable: true` et un `cellStyle` (surlignage
     // manuel) sur CHAQUE colDef : en AG Grid, ces propriétés de colDef
     // l'emportent toujours sur celles de `defaultColDef`, quelle que soit
@@ -219,7 +234,7 @@ export function DataGrid({ reload }: DataGridProps) {
         },
       };
     });
-  }, [columns, choicesByColumnKey, coedition.isCellEditable, coedition.cellStyle]);
+  }, [colonnesEffectives, choicesByColumnKey, coedition.isCellEditable, coedition.cellStyle]);
 
   const defaultColDef = useMemo(
     () => ({
@@ -361,7 +376,11 @@ export function DataGrid({ reload }: DataGridProps) {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // --- Persistance de la largeur et de l'ordre des colonnes ----------------
+  // --- Persistance de la largeur et de l'ordre des colonnes (PERSO) --------
+  // Depuis la spec « Disposition des colonnes par utilisateur », le resize et
+  // le déplacement écrivent la disposition PERSONNELLE (PATCH
+  // /me/column-layout/:columnId), plus jamais la config globale.
+  //
   // Initialisation paresseuse : `useRef(<expr>).current` évaluerait <expr> à
   // CHAQUE rendu (l'objet/la closure construit(e) serait aussitôt jetée,
   // seul `.current` du premier rendu étant conservé) ; on n'initialise donc
@@ -373,16 +392,17 @@ export function DataGrid({ reload }: DataGridProps) {
   if (!layoutDepsRef.current) {
     layoutDepsRef.current = {
       getColumns: () => useAppStore.getState().columns,
-      patchColumn: api.patchColumn,
-      setColumns: (next) => useAppStore.getState().setColumns(next),
+      patchMyColumnLayout: api.patchMyColumnLayout,
+      applyUserLayoutEntries: (entries) =>
+        useAppStore.getState().applyUserLayoutEntries(entries),
       onError: (error) => useAppStore.getState().showToast(messageForError(error), 'error'),
     };
   }
   const layoutDeps = layoutDepsRef.current;
 
-  // Coalescence PAR COLONNE (`colKey`) : redimensionner/déplacer la colonne A
-  // puis la colonne B dans la même fenêtre de 400 ms produit un PATCH par
-  // colonne — un debounce global ferait perdre silencieusement celui de A.
+  // Coalescence PAR COLONNE (`colKey`) : redimensionner la colonne A puis la
+  // colonne B dans la même fenêtre de 400 ms produit un PATCH par colonne —
+  // un debounce global ferait perdre silencieusement celui de A.
   type ColumnFieldDebouncer = ReturnType<typeof debouncePerKey<[string, number]>>;
 
   const persistWidthRef = useRef<ColumnFieldDebouncer | null>(null);
@@ -397,26 +417,31 @@ export function DataGrid({ reload }: DataGridProps) {
   }
   const persistWidth = persistWidthRef.current;
 
-  const persistPositionRef = useRef<ColumnFieldDebouncer | null>(null);
-  if (!persistPositionRef.current) {
-    persistPositionRef.current = debouncePerKey(
-      (colKey: string, position: number) => {
-        void persistColumnField(colKey, { position }, layoutDeps);
-      },
-      400,
-      (colKey: string) => colKey,
-    );
+  // Un déplacement enregistre l'ordre COMPLET des colonnes affichées (une
+  // entrée position par colonne) : un debounce GLOBAL suffit ici, la
+  // dernière rafale porte l'ordre final — contrairement aux largeurs, il
+  // n'y a rien à coalescer par colonne.
+  const persistOrderRef = useRef<ReturnType<typeof debounce<[string[]]>> | null>(null);
+  if (!persistOrderRef.current) {
+    persistOrderRef.current = debounce((ordre: string[]) => {
+      void persistColumnOrder(ordre, layoutDeps);
+    }, 400);
   }
-  const persistPosition = persistPositionRef.current;
+  const persistOrder = persistOrderRef.current;
 
   useEffect(() => () => {
     persistWidth.cancelAll();
-    persistPosition.cancelAll();
-  }, [persistWidth, persistPosition]);
+    persistOrder.cancel();
+  }, [persistWidth, persistOrder]);
 
+  // Garde sur `event.source` (uiColumnResized/uiColumnMoved = geste
+  // utilisateur) : un recalcul de `columnDefs` (config.changed admin,
+  // ré-application du layout perso) déclenche les mêmes événements avec une
+  // autre source — les persister matérialiserait en réglage perso des
+  // valeurs que l'utilisateur n'a jamais choisies.
   const onColumnResized = useCallback(
     (event: ColumnResizedEvent<RowDTO>) => {
-      if (!event.finished || !event.column) return;
+      if (!event.finished || !event.column || event.source !== 'uiColumnResized') return;
       persistWidth(event.column.getColId(), Math.round(event.column.getActualWidth()));
     },
     [persistWidth],
@@ -424,10 +449,10 @@ export function DataGrid({ reload }: DataGridProps) {
 
   const onColumnMoved = useCallback(
     (event: ColumnMovedEvent<RowDTO>) => {
-      if (!event.finished || !event.column || event.toIndex === undefined) return;
-      persistPosition(event.column.getColId(), event.toIndex);
+      if (!event.finished || event.source !== 'uiColumnMoved') return;
+      persistOrder(event.api.getAllDisplayedColumns().map((column) => column.getColId()));
     },
-    [persistPosition],
+    [persistOrder],
   );
 
   // --- Édition d'une cellule ------------------------------------------------

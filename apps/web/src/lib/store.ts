@@ -6,6 +6,7 @@ import type {
   ColumnDTO,
   MonthInfo,
   RowDTO,
+  UserColumnLayoutDTO,
   UserDTO,
 } from '@suivi/shared';
 import { cellKey, removeRow, rowBelongsToView, uniquePresence, upsertRow } from './coedition';
@@ -39,6 +40,70 @@ export interface RemoteLock {
   user: UserDTO;
 }
 
+/** Réglages personnels d'une colonne ; champ absent = hérite du standard. */
+export interface UserLayoutEntry {
+  width?: number;
+  position?: number;
+  hidden?: boolean;
+}
+
+/** Disposition personnelle complète, indexée par `Column.id`. */
+export type UserLayout = Record<string, UserLayoutEntry>;
+
+/**
+ * Réponse de `GET /me/column-layout` → `UserLayout` du store. Les champs
+ * `null` du DTO (= héritage du réglage standard) sont OMIS de l'entrée :
+ * la fusion peut alors s'écrire `perso ?? standard` sans distinguer null
+ * d'absent.
+ */
+export function indexerDisposition(entries: UserColumnLayoutDTO[]): UserLayout {
+  const layout: UserLayout = {};
+  for (const entry of entries) {
+    const perso: UserLayoutEntry = {};
+    if (entry.width !== null) perso.width = entry.width;
+    if (entry.position !== null) perso.position = entry.position;
+    if (entry.hidden) perso.hidden = true;
+    layout[entry.columnId] = perso;
+  }
+  return layout;
+}
+
+/**
+ * Colonnes EFFECTIVES de la grille : fusion du réglage standard (table
+ * `Column`, écran admin Paramètres > Colonnes) et de la disposition
+ * personnelle de l'utilisateur courant.
+ *
+ * - largeur = perso ?? standard ;
+ * - ordre = position perso ?? standard, départage STABLE par position
+ *   standard (deux colonnes à la même clé gardent leur ordre admin) ;
+ * - visible = visible global ET non masquée perso.
+ *
+ * Les positions retournées sont réécrites en rangs 0..n-1 : `buildColumnDefs`
+ * retrie par `position`, un ordre fusionné non matérialisé dans ce champ y
+ * serait aussitôt perdu. L'écran admin ne passe JAMAIS par cette fusion : il
+ * lit le réglage standard pur via son propre `GET /columns`.
+ */
+export function fusionnerDisposition(
+  columns: ColumnDTO[],
+  userLayout: UserLayout,
+): ColumnDTO[] {
+  const ordonnees = [...columns].sort((a, b) => {
+    const clefA = userLayout[a.id]?.position ?? a.position;
+    const clefB = userLayout[b.id]?.position ?? b.position;
+    if (clefA !== clefB) return clefA - clefB;
+    return a.position - b.position;
+  });
+  return ordonnees.map((column, rang) => {
+    const perso = userLayout[column.id];
+    return {
+      ...column,
+      position: rang,
+      width: perso?.width ?? column.width,
+      visible: column.visible && !(perso?.hidden ?? false),
+    };
+  });
+}
+
 export interface AppState {
   user: UserDTO | null;
   columns: ColumnDTO[];
@@ -50,8 +115,21 @@ export interface AppState {
   view: GridView;
   toast: ToastState | null;
 
+  /**
+   * Disposition personnelle (largeur/ordre/masquage), indexée par `Column.id`.
+   * Fusionnée avec `columns` via `fusionnerDisposition` partout où la grille
+   * consomme les colonnes ; `columns` reste le réglage standard PUR.
+   */
+  userLayout: UserLayout;
+
   setUser: (user: UserDTO | null) => void;
   setColumns: (columns: ColumnDTO[]) => void;
+  setUserLayout: (userLayout: UserLayout) => void;
+  /**
+   * Fusionne des entrées upsertées (réponses de PATCH /me/column-layout) :
+   * chaque entrée serveur est COMPLÈTE et remplace donc celle de sa colonne.
+   */
+  applyUserLayoutEntries: (entries: UserColumnLayoutDTO[]) => void;
   setRows: (rows: RowDTO[]) => void;
   setMonths: (months: MonthInfo[]) => void;
   setMonthCourant: (month: string) => void;
@@ -155,6 +233,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   months: [],
   view: 'month',
   toast: null,
+  userLayout: {},
 
   setUser: (user) => set({ user }),
 
@@ -162,6 +241,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const sorted = [...columns].sort((a, b) => a.position - b.position);
     set({ columns: sorted, choicesByColumnKey: indexChoices(sorted) });
   },
+
+  setUserLayout: (userLayout) => set({ userLayout }),
+
+  applyUserLayoutEntries: (entries) =>
+    set((state) => ({
+      userLayout: { ...state.userLayout, ...indexerDisposition(entries) },
+    })),
 
   setRows: (rows) => set({ rows }),
   setMonths: (months) => set({ months }),

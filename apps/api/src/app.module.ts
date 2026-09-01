@@ -4,6 +4,7 @@ import { ChoicesModule } from './choices/choices.module';
 import { ColumnsModule } from './columns/columns.module';
 import { HealthModule } from './health/health.module';
 import { ImportModule } from './import/import.module';
+import { MeLayoutModule } from './me-layout/me-layout.module';
 import { MonthsModule } from './months/months.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RealtimeModule } from './realtime/realtime.module';
@@ -20,6 +21,7 @@ import { UsersModule } from './users/users.module';
     ChoicesModule,
     RowsModule,
     ImportModule,
+    MeLayoutModule,
     MonthsModule,
     RealtimeModule,
   ],
