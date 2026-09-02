@@ -39,6 +39,7 @@ describe('FilterStatusBar', () => {
       filtersActive: false,
     });
     useAppStore.getState().setClearFilters(null);
+    useAppStore.getState().setImprimerTableau(null);
   });
 
   it('affiche le total du mois sans bouton de réinitialisation', () => {
@@ -62,6 +63,15 @@ describe('FilterStatusBar', () => {
     render(<FilterStatusBar />);
     await user.click(screen.getByTestId('filters-reset'));
     expect(clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('le bouton « Imprimer » déclenche l’impression branchée par la grille', async () => {
+    const user = userEvent.setup();
+    const imprimer = vi.fn();
+    useAppStore.getState().setImprimerTableau(imprimer);
+    render(<FilterStatusBar />);
+    await user.click(screen.getByTestId('print-table'));
+    expect(imprimer).toHaveBeenCalledTimes(1);
   });
 
   it('une pastille de surlignage filtre au clic et se libère au second clic', async () => {

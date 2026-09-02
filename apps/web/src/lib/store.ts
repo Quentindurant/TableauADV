@@ -150,6 +150,9 @@ export interface AppState {
   clearFilters: () => void;
   setFilterStatus: (displayedRowCount: number, filtersActive: boolean) => void;
   setClearFilters: (fn: (() => void) | null) => void;
+  /** Impression du tableau affiché, branchée par DataGrid (voir printTable.ts). */
+  imprimerTableau: () => void;
+  setImprimerTableau: (fn: (() => void) | null) => void;
   /** Hex du surlignage filtré (barre du bas), null = pas de filtre couleur. */
   surlignageFiltre: string | null;
   setSurlignageFiltre: (hex: string | null) => void;
@@ -224,6 +227,9 @@ function applyDirectoryToPresence(presence: UserDTO[], users: UserDTO[]): UserDT
 
 /** Avant le premier onGridReady (ou après démontage), la remise à zéro est inoffensive. */
 function noopClearFilters(): void {}
+
+/** Même garde pour l'impression : sans grille montée, le bouton est inoffensif. */
+function noopImprimerTableau(): void {}
 
 function currentMonth(): string {
   const now = new Date();
@@ -312,6 +318,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setFilterStatus: (displayedRowCount, filtersActive) =>
     set({ displayedRowCount, filtersActive }),
   setClearFilters: (fn) => set({ clearFilters: fn ?? noopClearFilters }),
+  imprimerTableau: noopImprimerTableau,
+  setImprimerTableau: (fn) => set({ imprimerTableau: fn ?? noopImprimerTableau }),
   surlignageFiltre: null,
   setSurlignageFiltre: (hex) => set({ surlignageFiltre: hex }),
   surlignageColonne: null,

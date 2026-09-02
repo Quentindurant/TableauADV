@@ -16,14 +16,16 @@ export function compteurDossiers(
 
 /**
  * Compteur de dossiers du mois + remise à zéro des filtres personnels +
- * panneau « Colonnes » (disposition personnelle). Purement client pour les
- * filtres : chaque ADV voit son propre état de filtres AG Grid.
+ * impression du tableau affiché + panneau « Colonnes » (disposition
+ * personnelle). Purement client pour les filtres : chaque ADV voit son
+ * propre état de filtres AG Grid.
  */
 export function FilterStatusBar() {
   const total = useAppStore((state) => state.rows.length);
   const displayed = useAppStore((state) => state.displayedRowCount);
   const filtersActive = useAppStore((state) => state.filtersActive);
   const clearFilters = useAppStore((state) => state.clearFilters);
+  const imprimerTableau = useAppStore((state) => state.imprimerTableau);
   const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
   const setSurlignageFiltre = useAppStore((state) => state.setSurlignageFiltre);
   const surlignageColonne = useAppStore((state) => state.surlignageColonne);
@@ -104,6 +106,15 @@ export function FilterStatusBar() {
           Réinitialiser les filtres
         </button>
       ) : null}
+      <button
+        type="button"
+        data-testid="print-table"
+        title="Imprimer le tableau tel qu'affiché (filtres et colonnes actuels)"
+        onClick={imprimerTableau}
+        className="gc-tab gc-monthnav__reset"
+      >
+        Imprimer
+      </button>
       <ColumnsPanel />
     </>
   );

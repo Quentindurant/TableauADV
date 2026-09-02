@@ -41,6 +41,9 @@ import {
   type PersistColumnFieldDeps,
 } from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
+import { compteurDossiers } from './FilterStatusBar';
+import { formatMonthLabel } from './MonthNav';
+import { construireDocumentImpression } from './printTable';
 import { RowContextMenu } from './RowContextMenu';
 import { RowDeleteDialog } from './RowDeleteDialog';
 import { supprimerLigne } from './rowDelete';
@@ -187,6 +190,64 @@ export function reglesLigneActive(
     [CLASSE_LIGNE_ACTIVE]: (params: RowClassParams<RowDTO>) =>
       params.data !== undefined && params.data.id === ligneActive(),
   };
+}
+
+// --- Impression du tableau affiché (bouton de la barre du bas) --------------
+//
+// Fidèle à ce que l'utilisateur voit : lignes APRÈS filtres et tri de la
+// grille, colonnes de la disposition personnelle (fusion standard + perso,
+// colonnes masquées exclues). Le document est écrit dans une fenêtre dédiée,
+// imprimé puis refermé ; l'état du store est lu À L'APPEL (getState), jamais
+// figé dans la closure d'onGridReady.
+function imprimerTableauAffiche(gridApi: GridApi<RowDTO>): void {
+  const state = useAppStore.getState();
+
+  const lignes: RowDTO[] = [];
+  gridApi.forEachNodeAfterFilterAndSort((node) => {
+    if (node.data) lignes.push(node.data);
+  });
+
+  const colonnes = fusionnerDisposition(state.columns, state.userLayout)
+    .filter((column) => column.visible)
+    .map((column) => ({ key: column.key, label: column.label, type: column.type }));
+
+  const titre = state.view === 'archives' ? 'ARCHIVES' : formatMonthLabel(state.monthCourant);
+  const compteur = compteurDossiers(lignes.length, state.rows.length, state.filtersActive);
+  const sousTitre = state.filtersActive ? `${compteur} — filtres actifs` : compteur;
+
+  const fenetre = window.open('', '_blank');
+  if (!fenetre) {
+    state.showToast(
+      'Impression impossible : autorisez les fenêtres pop-up pour ce site.',
+      'error',
+    );
+    return;
+  }
+
+  fenetre.document.write(
+    construireDocumentImpression({
+      titre,
+      sousTitre,
+      colonnes,
+      lignes,
+      choicesParColonne: state.choicesByColumnKey,
+    }),
+  );
+  fenetre.document.close();
+
+  // Fenêtre refermée sitôt le dialogue quitté (imprimé ou annulé).
+  fenetre.onafterprint = () => fenetre.close();
+  const lancer = (): void => {
+    fenetre.focus();
+    fenetre.print();
+  };
+  // Après document.close(), la fin de chargement peut être synchrone ou non
+  // selon le navigateur : on imprime au `load` s'il n'est pas déjà passé.
+  if (fenetre.document.readyState === 'complete') {
+    lancer();
+  } else {
+    fenetre.onload = lancer;
+  }
 }
 
 interface MenuState {
@@ -338,6 +399,9 @@ export function DataGrid({ reload }: DataGridProps) {
       useAppStore.getState().setSurlignageColonne(null);
       event.api.setFilterModel(null);
     });
+    // Impression : même branchement — la barre déclenche, la grille fournit
+    // les lignes réellement affichées via son API.
+    useAppStore.getState().setImprimerTableau(() => imprimerTableauAffiche(event.api));
   }, []);
 
   // --- Filtre par couleur de surlignage (barre du bas) --------------------
@@ -377,6 +441,7 @@ export function DataGrid({ reload }: DataGridProps) {
     () => () => {
       const store = useAppStore.getState();
       store.setClearFilters(null);
+      store.setImprimerTableau(null);
       store.setFilterStatus(0, false);
     },
     [],
