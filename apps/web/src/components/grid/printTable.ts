@@ -5,6 +5,12 @@ export interface ColonneImpression {
   key: string;
   label: string;
   type: ColumnType;
+  /**
+   * Largeur écran (px) de la disposition personnelle : convertie en % pour
+   * que le papier respecte les proportions de la grille (CLIENT et
+   * commentaires larges, DPT étroit). Absente = colonnes équitables.
+   */
+  width?: number;
 }
 
 export interface ParamsImpression {
@@ -90,32 +96,32 @@ function renduCellule(
 }
 
 const STYLES_IMPRESSION = `
-    @page { size: A4 landscape; margin: 10mm; }
+    @page { size: A4 landscape; margin: 8mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-      font-size: 9px;
+      font-size: 7.5px;
+      line-height: 1.25;
       color: #10353b;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
-    .entete { margin: 0 0 6px; }
-    .entete h1 { margin: 0; font-size: 14px; letter-spacing: 0.04em; }
-    .entete p { margin: 2px 0 0; color: #5b6f6b; }
+    .entete { margin: 0 0 4px; }
+    .entete h1 { margin: 0; font-size: 12px; letter-spacing: 0.04em; }
+    .entete p { margin: 1px 0 0; color: #5b6f6b; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     thead { display: table-header-group; }
     tr { page-break-inside: avoid; }
     th, td {
       border: 1px solid #c9d2cf;
-      padding: 2px 4px;
+      padding: 1px 3px;
       text-align: left;
       vertical-align: top;
-      word-wrap: break-word;
       overflow-wrap: break-word;
     }
-    th { background: #f1f5f3; font-size: 8px; }
-    .pastille { display: inline-block; padding: 1px 8px; border-radius: 999px; }
+    th { background: #f1f5f3; font-size: 6.5px; text-transform: uppercase; }
+    .pastille { display: inline-block; padding: 0 6px; border-radius: 999px; }
 `;
 
 /**
@@ -130,6 +136,19 @@ const STYLES_IMPRESSION = `
 export function construireDocumentImpression(params: ParamsImpression): string {
   const { titre, sousTitre, colonnes, lignes, choicesParColonne } = params;
   const dateImpression = formaterDateJour(params.dateImpression ?? new Date());
+
+  // Largeurs proportionnelles aux largeurs écran de la disposition perso :
+  // `table-layout: fixed` répartit alors le papier comme la grille.
+  const largeurTotale = colonnes.reduce((somme, colonne) => somme + (colonne.width ?? 0), 0);
+  const colgroup =
+    largeurTotale > 0
+      ? `<colgroup>${colonnes
+          .map(
+            (colonne) =>
+              `<col style="width:${(((colonne.width ?? 0) / largeurTotale) * 100).toFixed(2)}%">`,
+          )
+          .join('')}</colgroup>`
+      : '';
 
   const enTetes = colonnes
     .map((colonne) => `<th>${echapperHtml(colonne.label)}</th>`)
@@ -154,6 +173,7 @@ export function construireDocumentImpression(params: ParamsImpression): string {
 <p>${echapperHtml(sousTitre)} — Imprimé le ${dateImpression}</p>
 </header>
 <table>
+${colgroup}
 <thead><tr>${enTetes}</tr></thead>
 <tbody>
 ${corps}

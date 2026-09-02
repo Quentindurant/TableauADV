@@ -60,6 +60,27 @@ describe('construireDocumentImpression', () => {
     expect(html).toContain('size: A4 landscape');
   });
 
+  it('répartit les largeurs de colonnes au prorata des largeurs écran', () => {
+    const html = construireDocumentImpression({
+      titre: 'SEPTEMBRE 2026',
+      sousTitre: '1 dossier',
+      colonnes: [
+        { key: 'impe', label: 'IMPE', type: 'DATE', width: 100 },
+        { key: 'client', label: 'CLIENT', type: 'TEXT', width: 300 },
+      ],
+      lignes: [],
+      choicesParColonne: {},
+      dateImpression: new Date(2026, 8, 2),
+    });
+    expect(html).toContain('<col style="width:25.00%">');
+    expect(html).toContain('<col style="width:75.00%">');
+  });
+
+  it('sans largeurs fournies : aucun colgroup, colonnes équitables', () => {
+    const html = construire([]);
+    expect(html).not.toContain('<colgroup>');
+  });
+
   it('rend la valeur SELECT en pastille colorée du choix correspondant', () => {
     const html = construire([fakeRow({ statut: 'PLANIFIEE' })]);
     const pastille = /<span class="pastille"[^>]*>PLANIFIEE<\/span>/.exec(html)?.[0] ?? '';

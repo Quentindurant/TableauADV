@@ -209,7 +209,12 @@ function imprimerTableauAffiche(gridApi: GridApi<RowDTO>): void {
 
   const colonnes = fusionnerDisposition(state.columns, state.userLayout)
     .filter((column) => column.visible)
-    .map((column) => ({ key: column.key, label: column.label, type: column.type }));
+    .map((column) => ({
+      key: column.key,
+      label: column.label,
+      type: column.type,
+      width: column.width,
+    }));
 
   const titre = state.view === 'archives' ? 'ARCHIVES' : formatMonthLabel(state.monthCourant);
   const compteur = compteurDossiers(lignes.length, state.rows.length, state.filtersActive);
