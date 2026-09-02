@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { ColumnDTO, UserColumnLayoutDTO } from '@suivi/shared';
-import { fusionnerDisposition, indexerDisposition, useAppStore } from './store';
+import { fusionnerDisposition, indexerDisposition, trierParClient, useAppStore } from './store';
 
 function colonne(
   id: string,
@@ -138,5 +138,35 @@ describe('userLayout (store)', () => {
       'col-statut': { width: 180 },
       'col-date': { position: 0 },
     });
+  });
+});
+
+describe('trierParClient', () => {
+  const ligne = (id: string, client: string | null, position: number) =>
+    ({
+      id,
+      month: '2026-09',
+      position,
+      data: client === null ? {} : { client },
+      formats: {},
+      version: 0,
+      archived: false,
+    }) as unknown as import('@suivi/shared').RowDTO;
+
+  it('trie par client, insensible casse et accents, vides en fin', () => {
+    const tri = trierParClient([
+      ligne('r1', 'Émile SARL', 0),
+      ligne('r2', null, 1),
+      ligne('r3', 'arcadia', 2),
+      ligne('r4', 'CULTURE MARINE', 3),
+    ]);
+    expect(tri.map((row) => row.id)).toEqual(['r3', 'r4', 'r1', 'r2']);
+  });
+
+  it('à client égal : ordre manuel conservé, tableau source intact', () => {
+    const source = [ligne('r1', 'ORPI', 5), ligne('r2', 'ORPI', 2)];
+    const tri = trierParClient(source);
+    expect(tri.map((row) => row.id)).toEqual(['r2', 'r1']);
+    expect(source.map((row) => row.id)).toEqual(['r1', 'r2']);
   });
 });

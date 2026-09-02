@@ -94,6 +94,29 @@ describe('FilterStatusBar', () => {
     expect(useAppStore.getState().surlignageFiltre).toBe('#EE7A6D');
   });
 
+  it('le bouton A→Z bascule le tri et le mémorise dans le navigateur', async () => {
+    const user = userEvent.setup();
+    window.localStorage.removeItem('suivi.tri-alphabetique');
+    useAppStore.setState({ triAlphabetique: false });
+    render(<FilterStatusBar />);
+    const bouton = screen.getByTestId('tri-alphabetique');
+    await user.click(bouton);
+    expect(useAppStore.getState().triAlphabetique).toBe(true);
+    expect(window.localStorage.getItem('suivi.tri-alphabetique')).toBe('1');
+    await user.click(bouton);
+    expect(useAppStore.getState().triAlphabetique).toBe(false);
+    expect(window.localStorage.getItem('suivi.tri-alphabetique')).toBe('0');
+  });
+
+  it('le bouton A→Z se ré-enclenche au montage depuis le navigateur', () => {
+    window.localStorage.setItem('suivi.tri-alphabetique', '1');
+    useAppStore.setState({ triAlphabetique: false });
+    render(<FilterStatusBar />);
+    expect(useAppStore.getState().triAlphabetique).toBe(true);
+    window.localStorage.removeItem('suivi.tri-alphabetique');
+    useAppStore.setState({ triAlphabetique: false });
+  });
+
   it('le sélecteur de colonne apparaît avec une couleur active et cible le filtre', async () => {
     const user = userEvent.setup();
     useAppStore.setState({

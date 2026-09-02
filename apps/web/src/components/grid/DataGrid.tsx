@@ -30,7 +30,7 @@ import {
 } from 'ag-grid-community';
 import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import * as api from '../../lib/api';
-import { fusionnerDisposition, useAppStore } from '../../lib/store';
+import { fusionnerDisposition, trierParClient, useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
 import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
 import {
@@ -604,9 +604,20 @@ export function DataGrid({ reload }: DataGridProps) {
     [flashCell],
   );
 
+  // --- Tri alphabétique (bouton A→Z de la barre du bas) --------------------
+  // Une VUE triée par client : l'ordre manuel (position) reste intact en
+  // base, le drag de lignes est suspendu tant que le tri est actif (déposer
+  // dans un ordre trié n'aurait pas de position cible sensée).
+  const triAlphabetique = useAppStore((state) => state.triAlphabetique);
+  const rowsAffichees = useMemo(
+    () => (triAlphabetique ? trierParClient(rows) : rows),
+    [rows, triAlphabetique],
+  );
+
   // --- Réordonnancement par glisser-déposer --------------------------------
   const onRowDragEnd = useCallback(
     (event: RowDragEndEvent<RowDTO>) => {
+      if (useAppStore.getState().triAlphabetique) return;
       const row = event.node.data;
       if (!row) return;
       void api
@@ -671,7 +682,8 @@ export function DataGrid({ reload }: DataGridProps) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <AgGridReact<RowDTO>
           theme={suiviTheme}
-          rowData={rows}
+          rowData={rowsAffichees}
+          suppressRowDrag={triAlphabetique}
           columnDefs={columnDefs}
           getRowId={(params: GetRowIdParams<RowDTO>) => params.data.id}
           defaultColDef={defaultColDef}

@@ -83,6 +83,30 @@ export function indexerDisposition(entries: UserColumnLayoutDTO[]): UserLayout {
  * serait aussitôt perdu. L'écran admin ne passe JAMAIS par cette fusion : il
  * lit le réglage standard pur via son propre `GET /columns`.
  */
+/** Clé localStorage du bouton A→Z (tri alphabétique par CLIENT). */
+export const CLE_TRI_ALPHABETIQUE = 'suivi.tri-alphabetique';
+
+/**
+ * Tri alphabétique des lignes par nom client (fr, insensible casse/accents),
+ * clients vides en fin. Ne mute pas le tableau d'origine : l'ordre manuel
+ * (`position`) reste la source de vérité, ce tri n'est qu'une VUE — aucun
+ * PATCH de position n'en découle.
+ */
+export function trierParClient(rows: RowDTO[]): RowDTO[] {
+  const nomDe = (row: RowDTO): string => String(row.data['client'] ?? '').trim();
+  return [...rows].sort((gauche, droite) => {
+    const nomGauche = nomDe(gauche);
+    const nomDroite = nomDe(droite);
+    if (nomGauche === '' || nomDroite === '') {
+      return Number(nomGauche === '') - Number(nomDroite === '');
+    }
+    return (
+      nomGauche.localeCompare(nomDroite, 'fr', { sensitivity: 'base', numeric: true }) ||
+      gauche.position - droite.position
+    );
+  });
+}
+
 export function fusionnerDisposition(
   columns: ColumnDTO[],
   userLayout: UserLayout,
@@ -159,6 +183,9 @@ export interface AppState {
   /** Colonne ciblée par le filtre couleur (key), null = toutes les colonnes. */
   surlignageColonne: string | null;
   setSurlignageColonne: (colKey: string | null) => void;
+  /** Tri alphabétique par CLIENT (bouton A→Z), mémorisé dans le navigateur. */
+  triAlphabetique: boolean;
+  setTriAlphabetique: (actif: boolean) => void;
 
   // --- co-édition (Feature 7) ---
   /** Annuaire complet de l'équipe (GET /users), rechargé sur config.changed. */
@@ -324,6 +351,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setSurlignageFiltre: (hex) => set({ surlignageFiltre: hex }),
   surlignageColonne: null,
   setSurlignageColonne: (colKey) => set({ surlignageColonne: colKey }),
+  triAlphabetique: false,
+  setTriAlphabetique: (actif) => {
+    // Persistance navigateur : le bouton reste enclenché après rechargement
+    // (hydraté par FilterStatusBar au montage ; garde SSR).
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CLE_TRI_ALPHABETIQUE, actif ? '1' : '0');
+    }
+    set({ triAlphabetique: actif });
+  },
 
   // --- co-édition (Feature 7) ---
   users: [],

@@ -1,6 +1,7 @@
 'use client';
 
-import { useAppStore } from '../../lib/store';
+import { useEffect } from 'react';
+import { CLE_TRI_ALPHABETIQUE, useAppStore } from '../../lib/store';
 import { ColumnsPanel } from './ColumnsPanel';
 import { HIGHLIGHT_COLORS } from './HighlightPalette';
 
@@ -31,6 +32,16 @@ export function FilterStatusBar() {
   const surlignageColonne = useAppStore((state) => state.surlignageColonne);
   const setSurlignageColonne = useAppStore((state) => state.setSurlignageColonne);
   const columns = useAppStore((state) => state.columns);
+  const triAlphabetique = useAppStore((state) => state.triAlphabetique);
+  const setTriAlphabetique = useAppStore((state) => state.setTriAlphabetique);
+
+  // Hydrate le bouton A→Z depuis le navigateur : il reste enclenché après
+  // rechargement (setTriAlphabetique réécrit la même valeur, sans effet).
+  useEffect(() => {
+    if (window.localStorage.getItem(CLE_TRI_ALPHABETIQUE) === '1') {
+      setTriAlphabetique(true);
+    }
+  }, [setTriAlphabetique]);
 
   return (
     <>
@@ -106,6 +117,21 @@ export function FilterStatusBar() {
           Réinitialiser les filtres
         </button>
       ) : null}
+      <button
+        type="button"
+        data-testid="tri-alphabetique"
+        title={
+          triAlphabetique
+            ? "Revenir à l'ordre manuel des lignes"
+            : 'Trier les lignes par client (A→Z)'
+        }
+        aria-pressed={triAlphabetique}
+        onClick={() => setTriAlphabetique(!triAlphabetique)}
+        className="gc-tab gc-monthnav__reset"
+        style={triAlphabetique ? { background: 'var(--gc-accent)', color: 'var(--gc-accent-ink)' } : undefined}
+      >
+        A→Z
+      </button>
       <button
         type="button"
         data-testid="print-table"
