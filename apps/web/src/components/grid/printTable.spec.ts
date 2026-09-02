@@ -81,6 +81,29 @@ describe('construireDocumentImpression', () => {
     expect(html).not.toContain('<colgroup>');
   });
 
+  it('plancher de 60 px : une colonne écrasée à l’écran reste lisible sur papier', () => {
+    const html = construireDocumentImpression({
+      titre: 'SEPTEMBRE 2026',
+      sousTitre: '1 dossier',
+      colonnes: [
+        { key: 'dpt', label: 'DPT', type: 'TEXT', width: 20 },
+        { key: 'client', label: 'CLIENT', type: 'TEXT', width: 180 },
+      ],
+      lignes: [],
+      choicesParColonne: {},
+      dateImpression: new Date(2026, 8, 2),
+    });
+    // 20 remonté à 60 : 60 / (60 + 180) = 25 %, pas 10 %.
+    expect(html).toContain('<col style="width:25.00%">');
+    expect(html).toContain('<col style="width:75.00%">');
+  });
+
+  it('les cellules de dates sont insécables (classe date, nowrap)', () => {
+    const html = construire([fakeRow({ impe: '2026-09-03' })]);
+    expect(html).toContain('<td class="date">03/09/2026</td>');
+    expect(html).toContain('td.date { white-space: nowrap; }');
+  });
+
   it('rend la valeur SELECT en pastille colorée du choix correspondant', () => {
     const html = construire([fakeRow({ statut: 'PLANIFIEE' })]);
     const pastille = /<span class="pastille"[^>]*>PLANIFIEE<\/span>/.exec(html)?.[0] ?? '';
@@ -98,7 +121,7 @@ describe('construireDocumentImpression', () => {
 
   it('formate les dates en JJ/MM/AAAA, en-tête d’impression compris', () => {
     const html = construire([fakeRow({ impe: '2026-09-14' })]);
-    expect(html).toContain('<td>14/09/2026</td>');
+    expect(html).toContain('<td class="date">14/09/2026</td>');
     expect(html).toContain('Imprimé le 02/09/2026');
   });
 

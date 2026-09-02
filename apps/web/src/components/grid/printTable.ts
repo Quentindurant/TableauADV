@@ -80,6 +80,7 @@ function renduCellule(
 ): string {
   const brute = ligne.data[colonne.key] ?? null;
   const surlignage = ligne.formats?.[colonne.key]?.bg;
+  const classe = colonne.type === 'DATE' ? ' class="date"' : '';
   const attribut = surlignage ? ` style="background:${echapperHtml(surlignage)}"` : '';
 
   let contenu = '';
@@ -92,7 +93,7 @@ function renduCellule(
       contenu = echapperHtml(String(brute));
     }
   }
-  return `<td${attribut}>${contenu}</td>`;
+  return `<td${classe}${attribut}>${contenu}</td>`;
 }
 
 const STYLES_IMPRESSION = `
@@ -119,9 +120,22 @@ const STYLES_IMPRESSION = `
       text-align: left;
       vertical-align: top;
       overflow-wrap: break-word;
+      /* Jamais de débordement sur la colonne voisine (pastilles, numéros). */
+      overflow: hidden;
     }
     th { background: #f1f5f3; font-size: 6.5px; text-transform: uppercase; }
-    .pastille { display: inline-block; padding: 0 6px; border-radius: 999px; }
+    /* Une date coupée en deux (« 01/09/2 026 ») est illisible : insécable. */
+    td.date { white-space: nowrap; }
+    .pastille {
+      display: inline-block;
+      max-width: 100%;
+      padding: 0 6px;
+      border-radius: 999px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: top;
+    }
 `;
 
 /**
@@ -138,15 +152,17 @@ export function construireDocumentImpression(params: ParamsImpression): string {
   const dateImpression = formaterDateJour(params.dateImpression ?? new Date());
 
   // Largeurs proportionnelles aux largeurs écran de la disposition perso :
-  // `table-layout: fixed` répartit alors le papier comme la grille.
-  const largeurTotale = colonnes.reduce((somme, colonne) => somme + (colonne.width ?? 0), 0);
+  // `table-layout: fixed` répartit alors le papier comme la grille. Plancher
+  // à 60 px : une colonne rétrécie à l'écran resterait illisible sur papier
+  // (en-tête cassé lettre à lettre, dates coupées en deux).
+  const largeurs = colonnes.map((colonne) => Math.max(colonne.width ?? 0, 60));
+  const largeurTotale = colonnes.some((colonne) => colonne.width !== undefined)
+    ? largeurs.reduce((somme, largeur) => somme + largeur, 0)
+    : 0;
   const colgroup =
     largeurTotale > 0
-      ? `<colgroup>${colonnes
-          .map(
-            (colonne) =>
-              `<col style="width:${(((colonne.width ?? 0) / largeurTotale) * 100).toFixed(2)}%">`,
-          )
+      ? `<colgroup>${largeurs
+          .map((largeur) => `<col style="width:${((largeur / largeurTotale) * 100).toFixed(2)}%">`)
           .join('')}</colgroup>`
       : '';
 
