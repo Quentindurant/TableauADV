@@ -70,17 +70,28 @@ export function compareDateIso(filterDate: Date, cellValue: unknown): number {
   return cellDate.getTime() - filterDate.getTime();
 }
 
+/**
+ * Style manuel d'une cellule : surlignage de fond et/ou couleur de texte,
+ * posés par le menu contextuel (`Row.formats`). `null` quand la cellule n'a
+ * aucun format, pour laisser le thème AG Grid intact.
+ */
 export function cellStyleForRow(
   row: RowDTO | undefined,
   key: string,
-): { backgroundColor: string } | null {
-  const background = row?.formats?.[key]?.bg;
-  return background ? { backgroundColor: background } : null;
+): { backgroundColor?: string; color?: string } | null {
+  const format = row?.formats?.[key];
+  if (!format?.bg && !format?.fg) return null;
+  const style: { backgroundColor?: string; color?: string } = {};
+  if (format.bg) style.backgroundColor = format.bg;
+  if (format.fg) style.color = format.fg;
+  return style;
 }
 
 export function buildColumnDefs(
   columns: ColumnDTO[],
   choicesByColumnKey: Record<string, ChoiceDTO[]>,
+  /** Lignes hautes : les commentaires longs s'affichent en entier. */
+  lignesHautes = true,
 ): ColDef<RowDTO>[] {
   const ordered = [...columns].sort((a, b) => a.position - b.position);
 
@@ -135,6 +146,13 @@ export function buildColumnDefs(
       def.cellEditor = 'agLargeTextCellEditor';
       def.cellEditorPopup = true;
       def.cellEditorParams = { maxLength: 5000, rows: 10, cols: 60 };
+      // Commentaires affichés en ENTIER (demande ADV) : le texte passe à la
+      // ligne et la hauteur de ligne suit le contenu. `autoHeight` sur
+      // plusieurs colonnes d'une même ligne retient la plus haute.
+      if (lignesHautes) {
+        def.wrapText = true;
+        def.autoHeight = true;
+      }
     } else if (column.type === 'DATE') {
       def.cellEditor = DateCellEditor;
       def.valueFormatter = (params: ValueFormatterParams<RowDTO, CellValue>) =>

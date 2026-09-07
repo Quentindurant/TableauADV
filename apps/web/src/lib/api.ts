@@ -1,6 +1,5 @@
 import type {
   ApiError,
-  CellFormat,
   CellValue,
   ColumnDTO,
   ErrorCode,
@@ -322,7 +321,8 @@ export async function patchRow(
   body: {
     expectedVersion: number;
     patch?: Record<string, CellValue>;
-    formats?: Record<string, CellFormat | null>;
+    /** `null` sur une cellule efface son format ; `null` sur un champ efface ce champ. */
+    formats?: Record<string, { bg?: string | null; fg?: string | null } | null>;
   },
 ): Promise<RowDTO> {
   return apiFetch<RowDTO>(`/rows/${id}`, jsonBody('PATCH', body));

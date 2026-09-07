@@ -144,4 +144,24 @@ describe('FilterStatusBar', () => {
     await user.click(screen.getByTestId('filtre-surlignage-Jaune'));
     expect(useAppStore.getState().surlignageColonne).toBeNull();
   });
+  it('le bouton Lignes hautes est actif par défaut et se mémorise', async () => {
+    const user = userEvent.setup();
+    window.localStorage.removeItem('suivi.lignes-hautes');
+    useAppStore.setState({ lignesHautes: true });
+    render(<FilterStatusBar />);
+    const bouton = screen.getByTestId('hauteur-lignes');
+    expect(bouton.getAttribute('aria-pressed')).toBe('true');
+    await user.click(bouton);
+    expect(useAppStore.getState().lignesHautes).toBe(false);
+    expect(window.localStorage.getItem('suivi.lignes-hautes')).toBe('0');
+  });
+
+  it('le mode compact est ré-appliqué au montage depuis le navigateur', () => {
+    window.localStorage.setItem('suivi.lignes-hautes', '0');
+    useAppStore.setState({ lignesHautes: true });
+    render(<FilterStatusBar />);
+    expect(useAppStore.getState().lignesHautes).toBe(false);
+    window.localStorage.removeItem('suivi.lignes-hautes');
+    useAppStore.setState({ lignesHautes: true });
+  });
 });

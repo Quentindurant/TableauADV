@@ -20,9 +20,13 @@ export interface ToastState {
 
 export type GridView = 'month' | 'archives';
 
+/** Patch d'un format de cellule : `null` sur un champ retire ce seul champ. */
+export type CellFormatPatch = { bg?: string | null; fg?: string | null };
+
 export interface RowChanges {
   patch?: Record<string, CellValue>;
-  formats?: Record<string, CellFormat | null>;
+  /** `null` sur une cellule retire tout son format. */
+  formats?: Record<string, CellFormatPatch | null>;
   version?: number;
 }
 
@@ -85,6 +89,9 @@ export function indexerDisposition(entries: UserColumnLayoutDTO[]): UserLayout {
  */
 /** Clé localStorage du bouton A→Z (tri alphabétique par CLIENT). */
 export const CLE_TRI_ALPHABETIQUE = 'suivi.tri-alphabetique';
+
+/** Clé localStorage du bouton de hauteur de ligne (défaut : lignes hautes). */
+export const CLE_LIGNES_HAUTES = 'suivi.lignes-hautes';
 
 /**
  * Tri alphabétique des lignes par nom client (fr, insensible casse/accents),
@@ -186,6 +193,12 @@ export interface AppState {
   /** Tri alphabétique par CLIENT (bouton A→Z), mémorisé dans le navigateur. */
   triAlphabetique: boolean;
   setTriAlphabetique: (actif: boolean) => void;
+  /**
+   * Lignes hautes : la hauteur suit le volume des commentaires. Actif par
+   * défaut (demande ADV) ; mémorisé dans le navigateur.
+   */
+  lignesHautes: boolean;
+  setLignesHautes: (actif: boolean) => void;
 
   // --- co-édition (Feature 7) ---
   /** Annuaire complet de l'équipe (GET /users), rechargé sur config.changed. */
@@ -300,12 +313,30 @@ export const useAppStore = create<AppState>()((set, get) => ({
         const data = changes.patch ? { ...row.data, ...changes.patch } : row.data;
         let formats = row.formats;
         if (changes.formats) {
+          // Fusion CHAMP par champ, miroir de mergeFormats côté API : poser
+          // une couleur de texte ne doit pas effacer le surlignage de fond
+          // (ni l'inverse). `null` sur la cellule retire tout son format,
+          // `null` sur un champ retire ce seul champ.
           formats = { ...row.formats };
           for (const [key, value] of Object.entries(changes.formats)) {
             if (value === null) {
               delete formats[key];
+              continue;
+            }
+            const fusionne: CellFormat = { ...formats[key] };
+            for (const champ of ['bg', 'fg'] as const) {
+              if (!(champ in value)) continue;
+              const valeurChamp = value[champ];
+              if (valeurChamp === null || valeurChamp === undefined) {
+                delete fusionne[champ];
+              } else {
+                fusionne[champ] = valeurChamp;
+              }
+            }
+            if (Object.keys(fusionne).length === 0) {
+              delete formats[key];
             } else {
-              formats[key] = value;
+              formats[key] = fusionne;
             }
           }
         }
@@ -359,6 +390,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
       window.localStorage.setItem(CLE_TRI_ALPHABETIQUE, actif ? '1' : '0');
     }
     set({ triAlphabetique: actif });
+  },
+  lignesHautes: true,
+  setLignesHautes: (actif) => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(CLE_LIGNES_HAUTES, actif ? '1' : '0');
+    }
+    set({ lignesHautes: actif });
   },
 
   // --- co-édition (Feature 7) ---

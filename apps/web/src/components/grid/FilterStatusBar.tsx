@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { CLE_TRI_ALPHABETIQUE, useAppStore } from '../../lib/store';
+import { CLE_LIGNES_HAUTES, CLE_TRI_ALPHABETIQUE, useAppStore } from '../../lib/store';
 import { ColumnsPanel } from './ColumnsPanel';
 import { HIGHLIGHT_COLORS } from './HighlightPalette';
 
@@ -35,13 +35,20 @@ export function FilterStatusBar() {
   const triAlphabetique = useAppStore((state) => state.triAlphabetique);
   const setTriAlphabetique = useAppStore((state) => state.setTriAlphabetique);
 
-  // Hydrate le bouton A→Z depuis le navigateur : il reste enclenché après
-  // rechargement (setTriAlphabetique réécrit la même valeur, sans effet).
+  const lignesHautes = useAppStore((state) => state.lignesHautes);
+  const setLignesHautes = useAppStore((state) => state.setLignesHautes);
+
+  // Hydrate les bascules depuis le navigateur : elles restent dans l'état
+  // choisi après rechargement. Les lignes hautes sont actives par défaut,
+  // seul un « 0 » explicite les désactive.
   useEffect(() => {
     if (window.localStorage.getItem(CLE_TRI_ALPHABETIQUE) === '1') {
       setTriAlphabetique(true);
     }
-  }, [setTriAlphabetique]);
+    if (window.localStorage.getItem(CLE_LIGNES_HAUTES) === '0') {
+      setLignesHautes(false);
+    }
+  }, [setTriAlphabetique, setLignesHautes]);
 
   return (
     <>
@@ -117,6 +124,25 @@ export function FilterStatusBar() {
           Réinitialiser les filtres
         </button>
       ) : null}
+      <button
+        type="button"
+        data-testid="hauteur-lignes"
+        title={
+          lignesHautes
+            ? 'Revenir aux lignes compactes (commentaires tronqués)'
+            : 'Adapter la hauteur des lignes aux commentaires'
+        }
+        aria-pressed={lignesHautes}
+        onClick={() => setLignesHautes(!lignesHautes)}
+        className="gc-tab gc-monthnav__reset"
+        style={
+          lignesHautes
+            ? { background: 'var(--gc-accent)', color: 'var(--gc-accent-ink)' }
+            : undefined
+        }
+      >
+        Lignes hautes
+      </button>
       <button
         type="button"
         data-testid="tri-alphabetique"

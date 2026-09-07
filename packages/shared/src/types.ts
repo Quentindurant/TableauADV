@@ -54,7 +54,14 @@ export interface UserColumnLayoutDTO {
 export type CellValue = string | number | null;
 
 export interface CellFormat {
+  /** Surlignage : couleur de FOND de la cellule (palette du menu contextuel). */
   bg?: string;
+  /**
+   * Couleur du TEXTE de la cellule. Posée à la main par le menu contextuel ;
+   * l'import Zoho ne renseigne que `bg`. Sans effet sur les colonnes SELECT,
+   * dont le rendu en pastille porte les couleurs du choix.
+   */
+  fg?: string;
 }
 
 export interface RowDTO {

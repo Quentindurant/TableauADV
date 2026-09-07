@@ -4,8 +4,12 @@ import type { CellFormat, CellValue } from '@suivi/shared';
 export type RowData = Record<string, CellValue>;
 /** Contenu du JSONB `Row.formats`. */
 export type RowFormats = Record<string, CellFormat>;
-/** Patch de formats : `null` demande le retrait du format de la clé. */
-export type FormatsPatch = Record<string, CellFormat | null>;
+/**
+ * Patch de formats : `null` sur une cellule retire tout son format ; `null`
+ * sur un champ (`{ fg: null }`) retire ce seul champ.
+ */
+export type CellFormatPatch = { bg?: string | null; fg?: string | null };
+export type FormatsPatch = Record<string, CellFormatPatch | null>;
 
 /**
  * Fusion clé par clé de `data`. Une valeur `null` efface la clé
@@ -24,16 +28,33 @@ export function mergeData(current: RowData, patch: RowData): RowData {
 }
 
 /**
- * Fusion clé par clé de `formats`. Une valeur `null` retire le surlignage
- * de la clé ; sinon le format de la clé est remplacé en entier.
+ * Fusion clé par clé de `formats`, puis CHAMP par CHAMP dans le format d'une
+ * cellule : poser une couleur de texte ne doit pas effacer le surlignage de
+ * fond, ni l'inverse. `null` sur une cellule retire tout son format ;
+ * `undefined` sur un champ retire ce seul champ (« remettre au défaut »),
+ * et une cellule dont il ne reste aucun champ disparaît de `formats`.
  */
 export function mergeFormats(current: RowFormats, patch: FormatsPatch): RowFormats {
   const next: RowFormats = { ...current };
   for (const [key, value] of Object.entries(patch)) {
     if (value === null) {
       delete next[key];
+      continue;
+    }
+    const fusionne: CellFormat = { ...next[key] };
+    for (const champ of ['bg', 'fg'] as const) {
+      if (!(champ in value)) continue;
+      const valeurChamp = value[champ];
+      if (valeurChamp === null || valeurChamp === undefined) {
+        delete fusionne[champ];
+      } else {
+        fusionne[champ] = valeurChamp;
+      }
+    }
+    if (Object.keys(fusionne).length === 0) {
+      delete next[key];
     } else {
-      next[key] = value;
+      next[key] = fusionne;
     }
   }
   return next;

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RowDTO } from '@suivi/shared';
 import { ApiRequestError } from '../../lib/api';
-import { commitCellEdit, commitHighlight, messageForError } from './cellCommit';
+import { commitCellEdit, commitHighlight, commitTextColor, messageForError } from './cellCommit';
 
 const row: RowDTO = {
   id: 'row-1',
@@ -174,7 +174,7 @@ describe('commitHighlight', () => {
     });
   });
 
-  it('envoie null pour effacer le surlignage', async () => {
+  it('« Effacer » retire le seul fond, la couleur de texte survit', async () => {
     const patchRow = vi.fn(async () => ({ ...row, formats: {}, version: 4 }));
     const d = deps(patchRow);
 
@@ -182,7 +182,7 @@ describe('commitHighlight', () => {
 
     expect(patchRow).toHaveBeenCalledWith('row-1', {
       expectedVersion: 3,
-      formats: { num_chrono: null },
+      formats: { num_chrono: { bg: null } },
     });
   });
 
@@ -222,5 +222,45 @@ describe('messageForError', () => {
     expect(messageForError(new Error('boom'))).toBe(
       "Le serveur est injoignable : la modification n'a pas été enregistrée.",
     );
+  });
+});
+
+describe('commitTextColor', () => {
+  const row: RowDTO = {
+    id: 'row-1',
+    month: '2026-09',
+    position: 0,
+    data: {},
+    formats: { num_chrono: { bg: '#F7DC6F' } },
+    version: 3,
+    archived: false,
+    updatedAt: '2026-09-01T10:00:00.000Z',
+  };
+
+  function deps(patchRow: ReturnType<typeof vi.fn>) {
+    return {
+      patchRow,
+      applyRowPatch: vi.fn(),
+      reload: vi.fn(async () => {}),
+      showToast: vi.fn(),
+    } as unknown as Parameters<typeof commitTextColor>[3];
+  }
+
+  it('PATCHe le seul champ fg : le surlignage de fond est préservé', async () => {
+    const patchRow = vi.fn(async () => ({ ...row, version: 4 }));
+    await commitTextColor(row, 'num_chrono', '#B02418', deps(patchRow));
+    expect(patchRow).toHaveBeenCalledWith('row-1', {
+      expectedVersion: 3,
+      formats: { num_chrono: { fg: '#B02418' } },
+    });
+  });
+
+  it('« Texte noir » envoie fg null sans toucher au fond', async () => {
+    const patchRow = vi.fn(async () => ({ ...row, version: 4 }));
+    await commitTextColor(row, 'num_chrono', null, deps(patchRow));
+    expect(patchRow).toHaveBeenCalledWith('row-1', {
+      expectedVersion: 3,
+      formats: { num_chrono: { fg: null } },
+    });
   });
 });

@@ -21,6 +21,10 @@ export interface RowContextMenuProps {
   onDelete: () => void;
   onShowHistory: () => void;
   onHighlight: (color: string | null) => void;
+  /** Couleur du texte de la cellule ; absente = rangée texte masquée. */
+  onTextColor?: (color: string | null) => void;
+  /** Type de la colonne sous le curseur (les SELECT n'ont pas de texte coloré). */
+  columnType?: string;
 }
 
 const itemStyle: React.CSSProperties = {
@@ -51,6 +55,8 @@ export function RowContextMenu({
   onDelete,
   onShowHistory,
   onHighlight,
+  onTextColor,
+  columnType,
 }: RowContextMenuProps) {
   const [moveOpen, setMoveOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -169,7 +175,12 @@ export function RowContextMenu({
       >
         Surligner la colonne « {colKey} »
       </div>
-      <HighlightPalette colKey={colKey} onPick={(color) => run(() => onHighlight(color))} />
+      <HighlightPalette
+        colKey={colKey}
+        columnType={columnType}
+        onPick={(color) => run(() => onHighlight(color))}
+        onPickText={onTextColor ? (color) => run(() => onTextColor(color)) : undefined}
+      />
     </div>
   );
 }

@@ -68,6 +68,32 @@ describe('mergeFormats', () => {
     mergeFormats(current, { impe: null });
     expect(current).toEqual({ impe: { bg: '#FFFF00' } });
   });
+
+  it('poser une couleur de texte conserve le surlignage de fond', () => {
+    expect(mergeFormats({ impe: { bg: '#F7DC6F' } }, { impe: { fg: '#B02418' } })).toEqual({
+      impe: { bg: '#F7DC6F', fg: '#B02418' },
+    });
+  });
+
+  it('poser un surlignage conserve la couleur de texte', () => {
+    expect(mergeFormats({ impe: { fg: '#B02418' } }, { impe: { bg: '#F7DC6F' } })).toEqual({
+      impe: { fg: '#B02418', bg: '#F7DC6F' },
+    });
+  });
+
+  it('null sur un CHAMP retire ce seul champ', () => {
+    expect(
+      mergeFormats({ impe: { bg: '#F7DC6F', fg: '#B02418' } }, { impe: { fg: null } }),
+    ).toEqual({ impe: { bg: '#F7DC6F' } });
+  });
+
+  it('une cellule sans champ restant disparaît de formats', () => {
+    expect(mergeFormats({ impe: { fg: '#B02418' } }, { impe: { fg: null } })).toEqual({});
+  });
+
+  it('null sur la CELLULE retire fond et texte', () => {
+    expect(mergeFormats({ impe: { bg: '#F7DC6F', fg: '#B02418' } }, { impe: null })).toEqual({});
+  });
 });
 
 describe('changedKeysOf', () => {

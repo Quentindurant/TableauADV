@@ -26,7 +26,8 @@ export interface CreateRowInput {
 export interface PatchRowInput {
   expectedVersion: number;
   patch?: Record<string, CellValue>;
-  formats?: Record<string, CellFormat | null>;
+  /** `null` sur une cellule efface son format ; `null` sur un champ efface ce champ. */
+  formats?: FormatsPatch;
 }
 
 export interface MoveRowInput {

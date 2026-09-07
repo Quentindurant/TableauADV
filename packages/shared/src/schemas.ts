@@ -93,8 +93,15 @@ export const createRowSchema = z.object({
 export const patchRowSchema = z.object({
   expectedVersion: z.number().int(),
   patch: z.record(z.union([z.string(), z.number(), z.null()])).optional(),
+  // `null` sur une cellule retire tout son format ; `null` sur un CHAMP
+  // retire ce seul champ (JSON ne transporte pas `undefined`) : poser une
+  // couleur de texte ne doit pas effacer le surlignage de fond.
   formats: z
-    .record(z.object({ bg: z.string().optional() }).nullable())
+    .record(
+      z
+        .object({ bg: z.string().nullable().optional(), fg: z.string().nullable().optional() })
+        .nullable(),
+    )
     .optional(),
 });
 

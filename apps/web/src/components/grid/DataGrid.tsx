@@ -32,7 +32,7 @@ import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import * as api from '../../lib/api';
 import { fusionnerDisposition, trierParClient, useAppStore } from '../../lib/store';
 import { buildColumnDefs } from './columnDefs';
-import { applyCellEdit, commitHighlight, messageForError } from './cellCommit';
+import { applyCellEdit, commitHighlight, commitTextColor, messageForError } from './cellCommit';
 import {
   debounce,
   debouncePerKey,
@@ -297,8 +297,12 @@ export function DataGrid({ reload }: DataGridProps) {
     [columns, userLayout],
   );
 
+  // Hauteur de ligne adaptée au volume des commentaires (bouton de la barre
+  // du bas) : recalcule les colDef, AG Grid re-mesure alors les lignes.
+  const lignesHautes = useAppStore((state) => state.lignesHautes);
+
   const columnDefs = useMemo(() => {
-    const base = buildColumnDefs(colonnesEffectives, choicesByColumnKey);
+    const base = buildColumnDefs(colonnesEffectives, choicesByColumnKey, lignesHautes);
     // La Feature 6 fixe déjà `editable: true` et un `cellStyle` (surlignage
     // manuel) sur CHAQUE colDef : en AG Grid, ces propriétés de colDef
     // l'emportent toujours sur celles de `defaultColDef`, quelle que soit
@@ -317,7 +321,13 @@ export function DataGrid({ reload }: DataGridProps) {
         },
       };
     });
-  }, [colonnesEffectives, choicesByColumnKey, coedition.isCellEditable, coedition.cellStyle]);
+  }, [
+    colonnesEffectives,
+    choicesByColumnKey,
+    lignesHautes,
+    coedition.isCellEditable,
+    coedition.cellStyle,
+  ]);
 
   const defaultColDef = useMemo(
     () => ({
@@ -743,6 +753,10 @@ export function DataGrid({ reload }: DataGridProps) {
           onHighlight={(color) =>
             void commitHighlight(menu.row, menu.colKey, color, deps)
           }
+          onTextColor={(color) =>
+            void commitTextColor(menu.row, menu.colKey, color, deps)
+          }
+          columnType={columns.find((column) => column.key === menu.colKey)?.type}
         />
       ) : null}
 

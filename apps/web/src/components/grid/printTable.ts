@@ -79,9 +79,12 @@ function renduCellule(
   choicesParColonne: Record<string, ChoiceDTO[]>,
 ): string {
   const brute = ligne.data[colonne.key] ?? null;
-  const surlignage = ligne.formats?.[colonne.key]?.bg;
+  const format = ligne.formats?.[colonne.key];
   const classe = colonne.type === 'DATE' ? ' class="date"' : '';
-  const attribut = surlignage ? ` style="background:${echapperHtml(surlignage)}"` : '';
+  const styles: string[] = [];
+  if (format?.bg) styles.push(`background:${format.bg}`);
+  if (format?.fg) styles.push(`color:${format.fg}`);
+  const attribut = styles.length > 0 ? ` style="${echapperHtml(styles.join(';'))}"` : '';
 
   let contenu = '';
   if (brute !== null && String(brute) !== '') {

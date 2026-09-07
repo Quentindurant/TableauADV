@@ -113,6 +113,18 @@ describe('cellStyleForRow', () => {
     expect(cellStyleForRow(row, 'statut')).toBeNull();
     expect(cellStyleForRow(undefined, 'client')).toBeNull();
   });
+
+  it('applique la couleur de texte, seule ou avec un surlignage', () => {
+    const colore = {
+      ...row,
+      formats: { impe: { fg: '#B02418' }, client: { bg: '#F7DC6F', fg: '#1A5276' } },
+    };
+    expect(cellStyleForRow(colore, 'impe')).toEqual({ color: '#B02418' });
+    expect(cellStyleForRow(colore, 'client')).toEqual({
+      backgroundColor: '#F7DC6F',
+      color: '#1A5276',
+    });
+  });
 });
 
 describe('buildColumnDefs', () => {

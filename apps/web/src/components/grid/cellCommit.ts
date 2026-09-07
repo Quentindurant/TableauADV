@@ -1,6 +1,6 @@
-import type { CellFormat, CellValue, RowDTO } from '@suivi/shared';
+import type { CellValue, RowDTO } from '@suivi/shared';
 import { ApiRequestError, apiFetch } from '../../lib/api';
-import { useAppStore } from '../../lib/store';
+import { useAppStore, type CellFormatPatch } from '../../lib/store';
 
 export interface CommitDeps {
   patchRow: (
@@ -8,14 +8,14 @@ export interface CommitDeps {
     body: {
       expectedVersion: number;
       patch?: Record<string, CellValue>;
-      formats?: Record<string, CellFormat | null>;
+      formats?: Record<string, CellFormatPatch | null>;
     },
   ) => Promise<RowDTO>;
   applyRowPatch: (
     rowId: string,
     changes: {
       patch?: Record<string, CellValue>;
-      formats?: Record<string, CellFormat | null>;
+      formats?: Record<string, CellFormatPatch | null>;
       version?: number;
     },
   ) => void;
@@ -156,8 +156,10 @@ export async function commitHighlight(
   color: string | null,
   deps: CommitDeps,
 ): Promise<void> {
-  const formats: Record<string, CellFormat | null> = {
-    [colKey]: color === null ? null : { bg: color },
+  // `bg: null` retire le SEUL surlignage : une couleur de texte posée sur la
+  // même cellule survit à « Effacer » (fusion champ à champ, API et store).
+  const formats: Record<string, { bg?: string | null; fg?: string | null } | null> = {
+    [colKey]: { bg: color },
   };
   deps.applyRowPatch(row.id, { formats });
   try {
@@ -176,6 +178,43 @@ export async function commitHighlight(
     } catch {
       // Panne doublée : le rechargement a échoué aussi.
       // La valeur optimiste reste affichée → avertissement explicite.
+      deps.showToast(
+        'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
+        'error',
+      );
+    }
+  }
+}
+
+/**
+ * Couleur du TEXTE d'une cellule — jumelle de `commitHighlight`. `null`
+ * remet le texte au noir sans toucher au surlignage de fond (fusion champ à
+ * champ côté store et côté API).
+ */
+export async function commitTextColor(
+  row: RowDTO,
+  colKey: string,
+  color: string | null,
+  deps: CommitDeps,
+): Promise<void> {
+  const formats: Record<string, { bg?: string | null; fg?: string | null } | null> = {
+    [colKey]: { fg: color },
+  };
+  deps.applyRowPatch(row.id, { formats });
+  try {
+    const updated = await deps.patchRow(row.id, {
+      expectedVersion: row.version,
+      formats,
+    });
+    deps.applyRowPatch(row.id, {
+      formats: updated.formats,
+      version: updated.version,
+    });
+  } catch (error) {
+    deps.showToast(messageForError(error), 'error');
+    try {
+      await deps.reload();
+    } catch {
       deps.showToast(
         'Modification non enregistrée et affichage non actualisé. Rechargez la page pour retrouver les données à jour.',
         'error',
