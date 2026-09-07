@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { Prisma, type Row } from '@prisma/client';
-import type { CellFormat, CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
+import type { CellValue, RowDTO, RowEventDTO } from '@suivi/shared';
 import { ApiException, notFound } from '../common/api.exception';
 import { RowEventsService } from '../events/row-events.service';
 import { PrismaService } from '../prisma/prisma.service';
