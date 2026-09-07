@@ -42,6 +42,7 @@ import {
 } from './columnLayout';
 import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { compteurDossiers } from './FilterStatusBar';
+import { AG_GRID_LOCALE_FR } from './localeFr';
 import { formatMonthLabel } from './MonthNav';
 import { construireDocumentImpression } from './printTable';
 import { RowContextMenu } from './RowContextMenu';
@@ -70,7 +71,11 @@ export const suiviTheme = themeQuartz.withParams({
   headerBackgroundColor: 'var(--gc-surface-alt, #F1F5F3)',
   headerTextColor: 'var(--gc-muted-soft, #8FA09C)',
   headerFontWeight: 700,
-  headerFontSize: 10.5,
+  headerFontSize: 11.5,
+  // Panneaux de filtre : lisibles sans loupe (le défaut du thème reprend
+  // fontSize, trop petit pour des listes d'opérateurs et de choix).
+  widgetHorizontalSpacing: 10,
+  widgetVerticalSpacing: 8,
   // Zébrage un cran au-dessus du blanc, survol DISTINCT du zébrage (sinon le
   // hover est invisible une ligne sur deux) et halo de colonne translucide :
   // le croisement des deux guide l'œil jusqu'aux cellules en bas à droite.
@@ -692,6 +697,7 @@ export function DataGrid({ reload }: DataGridProps) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <AgGridReact<RowDTO>
           theme={suiviTheme}
+          localeText={AG_GRID_LOCALE_FR}
           rowData={rowsAffichees}
           suppressRowDrag={triAlphabetique}
           columnDefs={columnDefs}
