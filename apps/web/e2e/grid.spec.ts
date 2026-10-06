@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { Workbook } from 'exceljs';
 
 const EMAIL = 'quentin.durant49@orange.fr';
 const PASSWORD = 'changeme';
@@ -93,5 +94,37 @@ test.describe('Grille de suivi des commandes', () => {
 
     // Suppression de la ligne créée : vérifie le flux ET nettoie les données.
     await supprimerPremiereLigne(page, 'statut');
+  });
+
+  test('« Export Excel » télécharge le tableau affiché en .xlsx', async ({ page }) => {
+    await login(page);
+
+    await page.locator('[data-testid="add-row"]').click();
+    const value = `E2E-EXPORT-${Date.now()}`;
+    const clientCell = cell(page, 'client');
+    await clientCell.dblclick();
+    await page.locator('.ag-cell-editor input').fill(value);
+    await page.keyboard.press('Enter');
+    await expect(clientCell).toHaveText(value);
+
+    const [telechargement] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('[data-testid="export-excel"]').click(),
+    ]);
+    expect(telechargement.suggestedFilename()).toMatch(/^suivi-commandes-\d{4}-\d{2}\.xlsx$/);
+
+    // Le fichier est un vrai classeur : relu comme Excel le ferait.
+    const classeur = new Workbook();
+    await classeur.xlsx.readFile(await telechargement.path());
+    const feuille = classeur.worksheets[0];
+    const enTetes = feuille.getRow(1).values as unknown[];
+    const colonneClient = enTetes.indexOf('CLIENT');
+    expect(colonneClient).toBeGreaterThan(0);
+    const clients: unknown[] = [];
+    feuille.getColumn(colonneClient).eachCell((cellule) => clients.push(cellule.value));
+    expect(clients).toContain(value);
+
+    // Suppression de la ligne créée : nettoie les données.
+    await supprimerPremiereLigne(page, 'client');
   });
 });

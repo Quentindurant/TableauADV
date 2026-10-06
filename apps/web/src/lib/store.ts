@@ -184,6 +184,9 @@ export interface AppState {
   /** Impression du tableau affiché, branchée par DataGrid (voir printTable.ts). */
   imprimerTableau: () => void;
   setImprimerTableau: (fn: (() => void) | null) => void;
+  /** Export Excel du tableau affiché, branché par DataGrid (voir exportTable.ts). */
+  exporterExcel: () => void;
+  setExporterExcel: (fn: (() => void) | null) => void;
   /** Hex du surlignage filtré (barre du bas), null = pas de filtre couleur. */
   surlignageFiltre: string | null;
   setSurlignageFiltre: (hex: string | null) => void;
@@ -270,6 +273,9 @@ function noopClearFilters(): void {}
 
 /** Même garde pour l'impression : sans grille montée, le bouton est inoffensif. */
 function noopImprimerTableau(): void {}
+
+/** Idem pour l'export Excel. */
+function noopExporterExcel(): void {}
 
 function currentMonth(): string {
   const now = new Date();
@@ -378,6 +384,8 @@ export const useAppStore = create<AppState>()((set, get) => ({
   setClearFilters: (fn) => set({ clearFilters: fn ?? noopClearFilters }),
   imprimerTableau: noopImprimerTableau,
   setImprimerTableau: (fn) => set({ imprimerTableau: fn ?? noopImprimerTableau }),
+  exporterExcel: noopExporterExcel,
+  setExporterExcel: (fn) => set({ exporterExcel: fn ?? noopExporterExcel }),
   surlignageFiltre: null,
   setSurlignageFiltre: (hex) => set({ surlignageFiltre: hex }),
   surlignageColonne: null,
