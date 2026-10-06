@@ -44,7 +44,13 @@ import { copyFocusedCell, pasteFocusedColumn } from './clipboard';
 import { compteurDossiers } from './FilterStatusBar';
 import { AG_GRID_LOCALE_FR } from './localeFr';
 import { formatMonthLabel } from './MonthNav';
-import { construireDocumentImpression } from './printTable';
+import {
+  construireClasseurExcel,
+  declencherTelechargement,
+  nomFichierExport,
+  TYPE_MIME_XLSX,
+} from './exportTable';
+import { construireDocumentImpression, type ColonneImpression } from './printTable';
 import { RowContextMenu } from './RowContextMenu';
 import { RowDeleteDialog } from './RowDeleteDialog';
 import { supprimerLigne } from './rowDelete';
@@ -197,14 +203,17 @@ export function reglesLigneActive(
   };
 }
 
-// --- Impression du tableau affiché (bouton de la barre du bas) --------------
+// --- Impression et export Excel du tableau affiché (barre du bas) -----------
 //
-// Fidèle à ce que l'utilisateur voit : lignes APRÈS filtres et tri de la
+// Fidèles à ce que l'utilisateur voit : lignes APRÈS filtres et tri de la
 // grille, colonnes de la disposition personnelle (fusion standard + perso,
-// colonnes masquées exclues). Le document est écrit dans une fenêtre dédiée,
-// imprimé puis refermé ; l'état du store est lu À L'APPEL (getState), jamais
-// figé dans la closure d'onGridReady.
-function imprimerTableauAffiche(gridApi: GridApi<RowDTO>): void {
+// colonnes masquées exclues). L'état du store est lu À L'APPEL (getState),
+// jamais figé dans la closure d'onGridReady.
+function lireTableauAffiche(gridApi: GridApi<RowDTO>): {
+  lignes: RowDTO[];
+  colonnes: ColonneImpression[];
+  titre: string;
+} {
   const state = useAppStore.getState();
 
   const lignes: RowDTO[] = [];
@@ -222,6 +231,49 @@ function imprimerTableauAffiche(gridApi: GridApi<RowDTO>): void {
     }));
 
   const titre = state.view === 'archives' ? 'ARCHIVES' : formatMonthLabel(state.monthCourant);
+  return { lignes, colonnes, titre };
+}
+
+/** Export en cours : un double clic ne déclenche pas deux téléchargements. */
+let exportExcelEnCours = false;
+
+/**
+ * Classeur `.xlsx` généré dans le navigateur (ExcelJS chargé à la demande)
+ * puis téléchargé : aucun aller-retour serveur, les données sont déjà là.
+ */
+async function exporterTableauAffiche(gridApi: GridApi<RowDTO>): Promise<void> {
+  if (exportExcelEnCours) return;
+  const state = useAppStore.getState();
+  const { lignes, colonnes, titre } = lireTableauAffiche(gridApi);
+  if (colonnes.length === 0) {
+    state.showToast('Export impossible : aucune colonne affichée.', 'error');
+    return;
+  }
+
+  exportExcelEnCours = true;
+  try {
+    const contenu = await construireClasseurExcel({
+      titre,
+      colonnes,
+      lignes,
+      choicesParColonne: state.choicesByColumnKey,
+    });
+    declencherTelechargement(
+      contenu,
+      nomFichierExport(state.view, state.monthCourant),
+      TYPE_MIME_XLSX,
+    );
+  } catch {
+    state.showToast('Export Excel impossible. Réessayez.', 'error');
+  } finally {
+    exportExcelEnCours = false;
+  }
+}
+
+// Le document imprimé est écrit dans une fenêtre dédiée, imprimé puis refermé.
+function imprimerTableauAffiche(gridApi: GridApi<RowDTO>): void {
+  const state = useAppStore.getState();
+  const { lignes, colonnes, titre } = lireTableauAffiche(gridApi);
   const compteur = compteurDossiers(lignes.length, state.rows.length, state.filtersActive);
   const sousTitre = state.filtersActive ? `${compteur} — filtres actifs` : compteur;
 
@@ -419,9 +471,10 @@ export function DataGrid({ reload }: DataGridProps) {
       useAppStore.getState().setSurlignageColonne(null);
       event.api.setFilterModel(null);
     });
-    // Impression : même branchement — la barre déclenche, la grille fournit
-    // les lignes réellement affichées via son API.
+    // Impression et export Excel : même branchement — la barre déclenche, la
+    // grille fournit les lignes réellement affichées via son API.
     useAppStore.getState().setImprimerTableau(() => imprimerTableauAffiche(event.api));
+    useAppStore.getState().setExporterExcel(() => void exporterTableauAffiche(event.api));
   }, []);
 
   // --- Filtre par couleur de surlignage (barre du bas) --------------------
@@ -462,6 +515,7 @@ export function DataGrid({ reload }: DataGridProps) {
       const store = useAppStore.getState();
       store.setClearFilters(null);
       store.setImprimerTableau(null);
+      store.setExporterExcel(null);
       store.setFilterStatus(0, false);
     },
     [],

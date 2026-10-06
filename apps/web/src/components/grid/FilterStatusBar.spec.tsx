@@ -40,6 +40,7 @@ describe('FilterStatusBar', () => {
     });
     useAppStore.getState().setClearFilters(null);
     useAppStore.getState().setImprimerTableau(null);
+    useAppStore.getState().setExporterExcel(null);
   });
 
   it('affiche le total du mois sans bouton de réinitialisation', () => {
@@ -72,6 +73,15 @@ describe('FilterStatusBar', () => {
     render(<FilterStatusBar />);
     await user.click(screen.getByTestId('print-table'));
     expect(imprimer).toHaveBeenCalledTimes(1);
+  });
+
+  it('le bouton « Export Excel » déclenche l’export branché par la grille', async () => {
+    const user = userEvent.setup();
+    const exporter = vi.fn();
+    useAppStore.getState().setExporterExcel(exporter);
+    render(<FilterStatusBar />);
+    await user.click(screen.getByTestId('export-excel'));
+    expect(exporter).toHaveBeenCalledTimes(1);
   });
 
   it('une pastille de surlignage filtre au clic et se libère au second clic', async () => {

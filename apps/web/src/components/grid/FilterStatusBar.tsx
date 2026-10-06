@@ -17,9 +17,9 @@ export function compteurDossiers(
 
 /**
  * Compteur de dossiers du mois + remise à zéro des filtres personnels +
- * impression du tableau affiché + panneau « Colonnes » (disposition
- * personnelle). Purement client pour les filtres : chaque ADV voit son
- * propre état de filtres AG Grid.
+ * impression et export Excel du tableau affiché + panneau « Colonnes »
+ * (disposition personnelle). Purement client pour les filtres : chaque ADV
+ * voit son propre état de filtres AG Grid.
  */
 export function FilterStatusBar() {
   const total = useAppStore((state) => state.rows.length);
@@ -27,6 +27,7 @@ export function FilterStatusBar() {
   const filtersActive = useAppStore((state) => state.filtersActive);
   const clearFilters = useAppStore((state) => state.clearFilters);
   const imprimerTableau = useAppStore((state) => state.imprimerTableau);
+  const exporterExcel = useAppStore((state) => state.exporterExcel);
   const surlignageFiltre = useAppStore((state) => state.surlignageFiltre);
   const setSurlignageFiltre = useAppStore((state) => state.setSurlignageFiltre);
   const surlignageColonne = useAppStore((state) => state.surlignageColonne);
@@ -166,6 +167,15 @@ export function FilterStatusBar() {
         className="gc-tab gc-monthnav__reset"
       >
         Imprimer
+      </button>
+      <button
+        type="button"
+        data-testid="export-excel"
+        title="Télécharger le tableau tel qu'affiché au format Excel (filtres et colonnes actuels)"
+        onClick={exporterExcel}
+        className="gc-tab gc-monthnav__reset"
+      >
+        Export Excel
       </button>
       <ColumnsPanel />
     </>
